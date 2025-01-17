@@ -1,6 +1,6 @@
 # Claude + Interactive Debugging
 
-This is an MCP Server and VS Code extension which enables claude to interactively debug and evaluate expressions.
+This is an [MCP](https://docs.anthropic.com/en/docs/build-with-claude/mcp) Server and VS Code extension which enables claude to interactively debug and evaluate expressions.
 
 That means it should also work with other models / clients etc. but I only demonstrate it with Claude here.
 
