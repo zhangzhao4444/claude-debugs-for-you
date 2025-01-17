@@ -22,6 +22,7 @@ https://github.com/user-attachments/assets/ef6085f7-11a2-4eea-bb60-b5a54873b5d5
 
 ## Setup
 
+- Run `npm run install` and `npm run build` in both `mcp` and `debug-with-llm`
 - Open ./debug-with-llm with VS Code and hit "run" which will open a new VSCode
     - this should be improved via making a .visx extension!
 - Navigate to your project root (containing .vscode/launch.json)
