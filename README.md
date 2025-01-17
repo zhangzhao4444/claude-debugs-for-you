@@ -2,6 +2,8 @@
 
 This is an MCP Server and VS Code extension which enables claude to interactively debug and evaluate expressions.
 
+That means it should also work with other models / clients etc. but I only demonstrate it with Claude here.
+
 It's theoretically language-agnostic, assuming debugger console support and valid launch.json for debugging in VSCode.
 
 _I made this during Nvidia + Vercel's 2 hour hackathon, so "it's not perfect" is the understatement of the century. Will happily accept pull requests!_
