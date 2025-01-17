@@ -59,5 +59,6 @@ i am building `longest_substring_with_k_distinct` and for some reason it's not w
 ## Short list of ideas
 
 - [ ] It should use ripgrep to find what you ask for, rather than list files + get file content.
-- Add "fix" tool by allowing MCP to insert a CodeLens or "auto fix" suggestion so the user can choose to apply a recommended change or not.
+- [ ] Add support for conditional breakpoints
+- [ ] Add "fix" tool by allowing MCP to insert a CodeLens or "auto fix" suggestion so the user can choose to apply a recommended change or not.
 - Your idea here!
