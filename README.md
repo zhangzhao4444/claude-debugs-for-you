@@ -1,4 +1,4 @@
-# Let Claude interactively debug your code
+# Enable Claude to interactively debug your code
 
 This is an [MCP](https://docs.anthropic.com/en/docs/build-with-claude/mcp) Server and VS Code extension which enables claude to interactively debug and evaluate expressions.
 
