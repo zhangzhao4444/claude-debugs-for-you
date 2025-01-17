@@ -10,6 +10,11 @@ _I made this during Nvidia + Vercel's 2 hour hackathon, so "it's not perfect" is
 
 Find bugs or have an idea that will improve this? Please open a pull request or log an issue.
 
+## Demo
+
+In this example, I made it intentionally very cautious (make no assumptions etc - same prompt as below) but you can ask it to do whatever.
+
+https://github.com/user-attachments/assets/ef6085f7-11a2-4eea-bb60-b5a54873b5d5
 
 ## Setup
 
