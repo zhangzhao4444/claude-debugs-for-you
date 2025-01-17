@@ -12,6 +12,8 @@ _I made this during Nvidia + Vercel's 2 hour hackathon, so "it's not perfect" is
 
 Find bugs or have an idea that will improve this? Please open a pull request or log an issue.
 
+Does this readme suck? Help me improve it!
+
 ## Demo
 
 In this example, I made it intentionally very cautious (make no assumptions etc - same prompt as below) but you can ask it to do whatever.
