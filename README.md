@@ -12,6 +12,9 @@ It's theoretically language-agnostic, assuming debugger console support and vali
 - Install the extension
 - Open a project containing a `.vscode/launch.json` with the first configuration setup to debug a specific file with `${file}`.
 - Execute "Start MCP Debug Server" (A popup will show that it started: copy the path to `mcp-debug.js`)
+
+<img width="384" alt="image" src="https://github.com/user-attachments/assets/5de31d62-32e5-4eac-83f1-cd6bacc2ab7d" />
+
 - Paste the following (BUT UPDATE THE PATH!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
 
 ```
