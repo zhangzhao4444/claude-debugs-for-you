@@ -2,7 +2,7 @@ import * as net from 'net';
 import * as vscode from 'vscode';
 
 export interface DebugCommand {
-    command: 'listFiles' | 'getFile' | 'debug';
+    command: 'listFiles' | 'getFileContent' | 'debug';
     payload: any;
 }
 
@@ -11,13 +11,105 @@ export interface DebugStep {
     file: string;
     line?: number;
     expression?: string;
+    condition?: string;
 }
+
+interface ToolRequest {
+    type: 'listTools' | 'callTool';
+    tool?: string;
+    arguments?: any;
+}
+
+const debugDescription = `Execute a debug plan with breakpoints, launch, continues, and expression 
+evaluation. ONLY SET BREAKPOINTS BEFORE LAUNCHING OR WHILE PAUSED. Be careful to keep track of where 
+you are, if paused on a breakpoint. Make sure to find and get the contents of any requested files. 
+Only use continue when ready to move to the next breakpoint. Launch will bring you to the first 
+breakpoint. DO NOT USE CONTINUE TO GET TO THE FIRST BREAKPOINT.`;
+
+const listFilesDescription = "List all files in the workspace. Use this to find any requested files.";
+
+const getFileContentDescription = `Get file content with line numbers - you likely need to list files 
+to understand what files are available. Be careful to use absolute paths.`;
 
 export class DebugServer {
     private server: net.Server | null = null;
-    private readonly port = 4711;
+    private port: number = 4711;
 
-    async start(): Promise<void> {
+    constructor(port?: number) {
+        this.port = port || 4711;
+    }
+
+    private readonly tools = [
+        {
+            name: "listFiles",
+            description: listFilesDescription,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    includePatterns: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Glob patterns to include (e.g. ['**/*.js'])"
+                    },
+                    excludePatterns: {
+                        type: "array",
+                        items: { type: "string" },
+                        description: "Glob patterns to exclude (e.g. ['node_modules/**'])"
+                    }
+                }
+            }
+        },
+        {
+            name: "getFileContent",
+            description: getFileContentDescription,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    path: {
+                        type: "string",
+                        description: "Path to the file. IT MUST BE AN ABSOLUTE PATH AND MATCH THE OUTPUT OF listFiles"
+                    }
+                },
+                required: ["path"]
+            }
+        },
+        {
+            name: "debug",
+            description: debugDescription,
+            inputSchema: {
+                type: "object",
+                properties: {
+                    steps: {
+                        type: "array",
+                        items: {
+                            type: "object",
+                            properties: {
+                                type: {
+                                    type: "string",
+                                    enum: ["setBreakpoint", "removeBreakpoint", "continue", "evaluate", "launch"],
+                                    description: ""
+                                },
+                                file: { type: "string" },
+                                line: { type: "number" },
+                                expression: { 
+                                    description: "An expression to be evaluated in the stack frame of the current breakpoint",
+                                    type: "string"
+                                 },
+                                condition: {
+                                    description: "If needed, a breakpoint condition may be specified to only stop on a breakpoint for some given condition.",
+                                    type: "string"
+                                },
+                            },
+                            required: ["type", "file"]
+                        }
+                    }
+                },
+                required: ["steps"]
+            }
+        }
+    ];
+
+    async start(serverPath?: string): Promise<void> {
         if (this.server) {
             throw new Error('Server is already running');
         }
@@ -28,7 +120,7 @@ export class DebugServer {
 
         return new Promise((resolve, reject) => {
             this.server!.listen(this.port, () => {
-                vscode.window.showInformationMessage('MCP Debug server started');
+                vscode.window.showInformationMessage(`MCP Debug server started${serverPath ? `: ${serverPath}` : ""}`);
                 resolve();
             });
 
@@ -38,19 +130,26 @@ export class DebugServer {
         });
     }
 
+    // Modify just the request handling part
     private async handleCommand(socket: net.Socket, data: Buffer) {
         try {
-            const command: DebugCommand = JSON.parse(data.toString());
+            const request: ToolRequest = JSON.parse(data.toString());
             let response: any;
 
-            if (command.command === 'listFiles') {
-                response = await this.handleListFiles(command.payload);
-            } else if (command.command === 'getFile') {
-                response = await this.handleGetFile(command.payload);
-            } else if (command.command === 'debug') {
-                response = await this.handleDebug(command.payload);
+            if (request.type === 'listTools') {
+                response = { tools: this.tools };
+            } else if (request.type === 'callTool') {
+                if (request.tool === 'listFiles') {
+                    response = await this.handleListFiles(request.arguments);
+                } else if (request.tool === 'getFileContent') {
+                    response = await this.handleGetFile(request.arguments);
+                } else if (request.tool === 'debug') {
+                    response = await this.handleDebug(request.arguments);
+                } else {
+                    throw new Error(`Unknown tool: ${request.tool}`);
+                }
             } else {
-                throw new Error(`Unknown command: ${command.command}`);
+                throw new Error(`Unknown request type: ${request.type}`);
             }
 
             socket.write(JSON.stringify({ success: true, data: response }));
@@ -66,25 +165,43 @@ export class DebugServer {
         program: string,
         args?: string[]
     }): Promise<string> {
-        // Ensure Python extension is available
-        const pythonExtension = vscode.extensions.getExtension('ms-python.python');
-        if (!pythonExtension) {
-            throw new Error('Python extension not installed');
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        if (!workspaceFolder) {
+            throw new Error('No workspace folder found');
         }
-    
-        // Create debug configuration
-        const config = {
-            type: 'python',
-            name: 'MCP Python Debug',
-            request: 'launch',
-            program: payload.program,
-            args: payload.args || [],
-            console: 'integratedTerminal',
-            justMyCode: true
-        };
-    
-        // Start debugging
-        await vscode.debug.startDebugging(undefined, config);
+
+        // Try to get launch configurations
+        const launchConfig = vscode.workspace.getConfiguration('launch', workspaceFolder.uri);
+        const configurations = launchConfig.get<any[]>('configurations');
+        
+        if (!configurations || configurations.length === 0) {
+            throw new Error('No debug configurations found in launch.json');
+        }
+
+        // Get the first configuration and update it with the current file
+        const config = {...configurations[0]};
+        
+        // Replace ${file} with actual file path if it exists in the configuration
+        Object.keys(config).forEach(key => {
+            if (typeof config[key] === 'string') {
+                config[key] = config[key].replace('${file}', payload.program);
+            }
+        });
+
+        // Replace ${workspaceFolder} in environment variables if they exist
+        if (config.env) {
+            Object.keys(config.env).forEach(key => {
+                if (typeof config.env[key] === 'string') {
+                    config.env[key] = config.env[key].replace(
+                        '${workspaceFolder}',
+                        workspaceFolder.uri.fsPath
+                    );
+                }
+            });
+        }
+
+        // Start debugging using the configured launch configuration
+        await vscode.debug.startDebugging(workspaceFolder, config);
         
         // Wait for session to be available
         const session = await this.waitForDebugSession();
@@ -171,14 +288,19 @@ export class DebugServer {
             switch (step.type) {
                 case 'setBreakpoint': {
                     if (!step.line) throw new Error('Line number required');
-                    const editor = vscode.window.activeTextEditor;
-                    if (!editor) throw new Error('No active editor');
+                    if (!step.file) throw new Error('File path required');
+
+                    // Open the file and make it active
+                    const document = await vscode.workspace.openTextDocument(step.file);
+                    const editor = await vscode.window.showTextDocument(document);
 
                     const bp = new vscode.SourceBreakpoint(
                         new vscode.Location(
                             editor.document.uri,
                             new vscode.Position(step.line - 1, 0)
-                        )
+                        ),
+                        true,
+                        step.condition,
                     );
                     await vscode.debug.addBreakpoints([bp]);
                     results.push(`Set breakpoint at line ${step.line}`);
