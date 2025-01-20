@@ -1,8 +1,10 @@
-# Enable Claude to interactively debug your code
+# Enable Claude (or any other LLM) to interactively debug your code
+
+[![Badge](https://img.shields.io/badge/Visual%20Studio%20Marketplace-v0.0.2-blue.svg)](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
 
 This is an [MCP](https://docs.anthropic.com/en/docs/build-with-claude/mcp) Server and VS Code extension which enables claude to interactively debug and evaluate expressions.
 
-That means it should also work with other models / clients etc. but I only demonstrate it with Claude here.
+That means it should also work with other models / clients etc. but I only demonstrate it with Claude Desktop here.
 
 It's theoretically language-agnostic, assuming debugger console support and valid launch.json for debugging in VSCode.
 
