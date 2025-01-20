@@ -22,11 +22,14 @@
         "title": "Start MCP Debug Server"
       }
     ],
-    "properties": {
-      "mcpDebug.port": {
-        "type": "number",
-        "default": 4711,
-        "description": "Port number for the debug server"
+    "configuration": {
+      "title": "Claude Debugs For You",
+      "properties": {
+        "mcpDebug.port": {
+          "type": "number",
+          "default": 4711,
+          "description": "Port number for the debug server"
+        }
       }
     }
   },
