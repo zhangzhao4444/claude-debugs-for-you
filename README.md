@@ -6,7 +6,7 @@ This is an [MCP](https://docs.anthropic.com/en/docs/build-with-claude/mcp) Serve
 
 That means it should also work with other models / clients etc. but I only demonstrate it with Claude Desktop here.
 
-It's theoretically language-agnostic, assuming debugger console support and valid launch.json for debugging in VSCode.
+It's language-agnostic, assuming debugger console support and valid launch.json for debugging in VSCode.
 
 ## Getting Started
 
