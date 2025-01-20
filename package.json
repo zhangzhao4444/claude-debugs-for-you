@@ -6,6 +6,7 @@
   "repository": "https://github.com/jasonjmcghee/claude-debugs-for-you",
   "author": "Jason McGhee",
   "publisher": "JasonMcGhee",
+  "icon": "images/claude-debugs-for-you.png",
   "engines": {
     "vscode": "^1.96.0"
   },
