@@ -4,6 +4,15 @@ All notable changes to the "claude-debugs-for-you" extension will be documented 
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.3]
+
+- Change built mcp server to be CJS instead of ESM by @jasonjmcghee in #4
+- Adds Windows compatibility by fixing a bug by @dkattan in #3, fixing #2
+
+## [0.0.2]
+
+- Adds ability to configure the port of the MCP Server
+
 ## [0.0.1]
 
 - Initial release (built initial prototype in hackathon)
