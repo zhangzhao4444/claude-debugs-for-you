@@ -18,7 +18,7 @@ async function build() {
     minify: true,
     sourcemap: true,
     external: [],
-    format: 'esm',
+    format: 'cjs',
     banner: {
       js: '#!/usr/bin/env node',
     },
