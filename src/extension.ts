@@ -13,17 +13,10 @@ export function activate(context: vscode.ExtensionContext) {
     const sourcePath = path.join(context.extensionUri.fsPath, 'mcp', 'build', 'index.js');
 
     try {
-        // Check if symlink already exists
-        const stats = fs.lstatSync(mcpServerPath);
-        if (!stats.isSymbolicLink()) {
-            // If it exists but isn't a symlink, remove and recreate
-            fs.unlinkSync(mcpServerPath);
-            fs.symlinkSync(sourcePath, mcpServerPath);
-        }
-        // If it is a symlink, do nothing
-    } catch (err) {
-        // File doesn't exist, create the symlink
-        fs.symlinkSync(sourcePath, mcpServerPath);
+        fs.copyFileSync(sourcePath, mcpServerPath);
+    } catch (err: any) {
+        vscode.window.showErrorMessage(`Failed to setup debug server: ${err.message}`);
+        return;
     }
 
     const config = vscode.workspace.getConfiguration('mcpDebug');
