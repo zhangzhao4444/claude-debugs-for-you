@@ -1,5 +1,8 @@
 import * as net from 'net';
+import * as http from 'http';
 import * as vscode from 'vscode';
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 
 export interface DebugCommand {
     command: 'listFiles' | 'getFileContent' | 'debug';
@@ -34,9 +37,31 @@ to understand what files are available. Be careful to use absolute paths.`;
 export class DebugServer {
     private server: net.Server | null = null;
     private port: number = 4711;
+    private activeTransports: Record<string, SSEServerTransport> = {};
+    private mcpServer: McpServer;
 
     constructor(port?: number) {
         this.port = port || 4711;
+        this.mcpServer = new McpServer({
+            name: "Debug Server",
+            version: "1.0.0"
+        });
+        
+        // Setup MCP tools to use our existing handlers
+        this.mcpServer.tool("listFiles", async (args: any) => {
+            const files = await this.handleListFiles(args);
+            return { content: [{ type: "text", text: JSON.stringify(files) }] };
+        });
+
+        this.mcpServer.tool("getFileContent", async (args: any) => {
+            const content = await this.handleGetFile(args);
+            return { content: [{ type: "text", text: content }] };
+        });
+
+        this.mcpServer.tool("debug", async (args: any) => {
+            const results = await this.handleDebug(args);
+            return { content: [{ type: "text", text: results.join('\n') }] };
+        });
     }
 
     private readonly tools = [
@@ -109,55 +134,95 @@ export class DebugServer {
         }
     ];
 
-    async start(serverPath?: string): Promise<void> {
+    async start(): Promise<void> {
         if (this.server) {
             throw new Error('Server is already running');
         }
 
-        this.server = net.createServer((socket) => {
-            socket.on('data', (data) => this.handleCommand(socket, data));
+        this.server = http.createServer(async (req, res) => {
+            // Handle CORS
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', '*');
+            
+            if (req.method === 'OPTIONS') {
+                res.writeHead(204).end();
+                return;
+            }
+
+            // Legacy TCP-style endpoint
+            if (req.method === 'POST' && req.url === '/tcp') {
+                let body = '';
+                req.on('data', chunk => body += chunk);
+                req.on('end', async () => {
+                    try {
+                        const request = JSON.parse(body);
+                        let response: any;
+
+                        if (request.type === 'listTools') {
+                            response = { tools: this.tools };
+                        } else if (request.type === 'callTool') {
+                            response = await this.handleCommand(request);
+                        }
+
+                        res.writeHead(200, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ success: true, data: response }));
+                    } catch (error) {
+                        res.writeHead(500, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({
+                            success: false,
+                            error: error instanceof Error ? error.message : 'Unknown error'
+                        }));
+                    }
+                });
+                return;
+            }
+
+            // SSE endpoint
+            if (req.method === 'GET' && req.url === '/sse') {
+                const transport = new SSEServerTransport('/messages', res);
+                this.activeTransports[transport.sessionId] = transport;
+                await this.mcpServer.connect(transport);
+                res.on('close', () => {
+                    delete this.activeTransports[transport.sessionId];
+                });
+                return;
+            }
+
+            // Message endpoint for SSE
+            if (req.method === 'POST' && req.url?.startsWith('/messages')) {
+                const url = new URL(req.url, 'http://localhost');
+                const sessionId = url.searchParams.get('sessionId');
+                if (!sessionId || !this.activeTransports[sessionId]) {
+                    res.writeHead(404).end('Session not found');
+                    return;
+                }
+                await this.activeTransports[sessionId].handlePostMessage(req, res);
+                return;
+            }
+
+            res.writeHead(404).end();
         });
 
         return new Promise((resolve, reject) => {
             this.server!.listen(this.port, () => {
-                vscode.window.showInformationMessage(`MCP Debug server started${serverPath ? `: ${serverPath}` : ""}`);
+                vscode.window.showInformationMessage(`Debug server started on port ${this.port}`);
                 resolve();
-            });
-
-            this.server!.on('error', (err) => {
-                reject(err);
-            });
+            }).on('error', reject);
         });
     }
 
-    // Modify just the request handling part
-    private async handleCommand(socket: net.Socket, data: Buffer) {
-        try {
-            const request: ToolRequest = JSON.parse(data.toString());
-            let response: any;
-
-            if (request.type === 'listTools') {
-                response = { tools: this.tools };
-            } else if (request.type === 'callTool') {
-                if (request.tool === 'listFiles') {
-                    response = await this.handleListFiles(request.arguments);
-                } else if (request.tool === 'getFileContent') {
-                    response = await this.handleGetFile(request.arguments);
-                } else if (request.tool === 'debug') {
-                    response = await this.handleDebug(request.arguments);
-                } else {
-                    throw new Error(`Unknown tool: ${request.tool}`);
-                }
-            } else {
-                throw new Error(`Unknown request type: ${request.type}`);
-            }
-
-            socket.write(JSON.stringify({ success: true, data: response }));
-        } catch (error) {
-            socket.write(JSON.stringify({
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error'
-            }));
+    // Helper method to handle tool calls
+    private async handleCommand(request: ToolRequest): Promise<any> {
+        switch (request.tool) {
+            case 'listFiles':
+                return await this.handleListFiles(request.arguments);
+            case 'getFileContent':
+                return await this.handleGetFile(request.arguments);
+            case 'debug':
+                return await this.handleDebug(request.arguments);
+            default:
+                throw new Error(`Unknown tool: ${request.tool}`);
         }
     }
 
@@ -376,6 +441,11 @@ export class DebugServer {
                 resolve();
                 return;
             }
+
+            Object.values(this.activeTransports).forEach(transport => {
+                transport.close();
+            });
+            this.activeTransports = {};
 
             this.server.close(() => {
                 this.server = null;
