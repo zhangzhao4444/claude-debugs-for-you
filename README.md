@@ -13,15 +13,17 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 
 ## Getting Started
 
-- Download the extension from [releases](https://github.com/jasonjmcghee/claude-debugs-for-you/releases/) or [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
-- Install the extension
+1. Download the extension from [releases](https://github.com/jasonjmcghee/claude-debugs-for-you/releases/) or [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
+2. Install the extension
   - If using `.vsix` directly, go to the three dots in "Extensions" in VS Code and choose "Install from VSIX..."
-- Open a project containing a `.vscode/launch.json` with the first configuration setup to debug a specific file with `${file}`.
-- Execute "Start MCP Debug Server" (A popup will show that it started: copy the path to `mcp-debug.js`)
+3. Open a project containing a `.vscode/launch.json` with the first configuration setup to debug a specific file with `${file}`.
+
+### If using node process based method (required for Claude Desktop)
+4. Execute "Start MCP Debug Server" (A popup will show that it started: copy the path to `mcp-debug.js`)
 
 <img width="384" alt="image" src="https://github.com/user-attachments/assets/5de31d62-32e5-4eac-83f1-cd6bacc2ab7d" />
 
-- Paste the following (BUT UPDATE THE PATH!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
+5. Paste the following (BUT UPDATE THE PATH!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
 
 ```
 {
@@ -36,9 +38,15 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 }
 ```
 
-- Start Claude desktop (or other MCP client)
-- You're ready to debug
-- See [Run  an Example](#run-an-example) below.
+6. Start Claude desktop (or other MCP client)
+7. You're ready to debug
+8. See [Run  an Example](#run-an-example) below.
+
+### If using `/sse` based method (e.g. Cursor)
+4. Add the MCP server using the server URL of "http://localhost:4711/sse", or whatever port you setup in settings.
+  - You may need to hit "refresh" depending on client: this is required in Cursor
+6. You're ready to debug
+7. See [Run  an Example](#run-an-example) below.
 
 ## Contributing
 
@@ -69,6 +77,8 @@ vsce package
 
 
 ## Run an Example
+
+Open `examples/python` in a VS Code window
 
 Enter the prompt:
 
