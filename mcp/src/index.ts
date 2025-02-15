@@ -1,48 +1,44 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import * as net from 'net';
+import * as http from 'http';
 
-interface VSCodeResponse {
-    success: boolean;
-    data?: any;
-    error?: string;
-}
-
-class VSCodeClient {
-    private socket: net.Socket;
-    private readonly port = Number(process.env.MCP_DEBUGGER_PORT || 4711);
-
-    constructor() {
-        this.socket = new net.Socket();
-    }
-
-    async connect(): Promise<void> {
-        return new Promise((resolve, reject) => {
-            this.socket.connect(this.port, 'localhost', () => resolve());
-            this.socket.on('error', reject);
-        });
-    }
-
-    async sendRequest(request: any): Promise<VSCodeResponse> {
-        return new Promise((resolve, reject) => {
-            this.socket.once('data', (data) => {
+async function makeRequest(payload: any): Promise<any> {
+    const port = Number(process.env.MCP_DEBUGGER_PORT || 4711);
+    
+    return new Promise((resolve, reject) => {
+        const data = JSON.stringify(payload);
+        
+        const req = http.request({
+            hostname: 'localhost',
+            port,
+            path: '/tcp',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(data)
+            }
+        }, res => {
+            let body = '';
+            res.on('data', chunk => body += chunk);
+            res.on('end', () => {
                 try {
-                    resolve(JSON.parse(data.toString()));
-                } catch (error) {
-                    reject(error);
+                    const response = JSON.parse(body);
+                    if (!response.success) {
+                        reject(new Error(response.error || 'Unknown error'));
+                    } else {
+                        resolve(response.data);
+                    }
+                } catch (err) {
+                    reject(err);
                 }
             });
-
-            this.socket.write(JSON.stringify(request));
         });
-    }
 
-    disconnect(): Promise<void> {
-        return new Promise((resolve) => {
-            this.socket.end(() => resolve());
-        });
-    }
+        req.on('error', reject);
+        req.write(data);
+        req.end();
+    });
 }
 
 const server = new Server(
@@ -57,47 +53,23 @@ const server = new Server(
     }
 );
 
-const vscodeClient = new VSCodeClient();
-
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-    try {
-        await vscodeClient.connect();
-        const response = await vscodeClient.sendRequest({
-            type: "listTools"
-        });
-        
-        if (!response.success) {
-            throw new Error(response.error || "Failed to list tools");
-        }
-        
-        return response.data;
-    } finally {
-        await vscodeClient.disconnect();
-    }
+    return await makeRequest({ type: 'listTools' });
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    try {
-        await vscodeClient.connect();
-        const response = await vscodeClient.sendRequest({
-            type: "callTool",
-            tool: request.params.name,
-            arguments: request.params.arguments
-        });
-        
-        if (!response.success) {
-            throw new Error(response.error || `Failed to execute tool: ${request.params.name}`);
-        }
+    const response = await makeRequest({
+        type: 'callTool',
+        tool: request.params.name,
+        arguments: request.params.arguments
+    });
 
-        return {
-            content: [{
-                type: "text",
-                text: Array.isArray(response.data) ? response.data.join("\n") : response.data
-            }]
-        };
-    } finally {
-        await vscodeClient.disconnect();
-    }
+    return {
+        content: [{
+            type: "text",
+            text: Array.isArray(response) ? response.join("\n") : response
+        }]
+    };
 });
 
 async function main() {
