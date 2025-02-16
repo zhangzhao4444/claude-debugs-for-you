@@ -62,6 +62,32 @@ It figures out the problem, and then suggests a fix, which we just click to appl
 
 https://github.com/user-attachments/assets/3a0a879d-2db7-4a3f-ab43-796c22a0f1ef
 
+<details>
+  <summary>Show MCP Configuration</summary>
+  
+  ```json
+  {
+    ...
+    "experimental": {
+      "modelContextProtocolServers": [
+        {
+          "transport": {
+            "type": "stdio",
+            "command": "node",
+            "args": [
+              "/Users/jason/Library/Application Support/Code/User/globalStorage/jasonmcghee.claude-debugs-for-you/mcp-debug.js"
+            ]
+          }
+        }
+      ]
+    }
+  }
+  ```
+
+</details>
+
+If helpful, this is what my configuration looks like! But it's nearly the same as Claude Desktop.
+
 
 ### Using Claude Desktop
 
