@@ -63,7 +63,11 @@ It figures out the problem, and then suggests a fix, which we just click to appl
 https://github.com/user-attachments/assets/3a0a879d-2db7-4a3f-ab43-796c22a0f1ef
 
 <details>
-  <summary>Show MCP Configuration</summary>
+  <summary>How do I set this up with Continue? / Show MCP Configuration</summary>
+
+  [Read the docs!](https://docs.continue.dev/customize/tools)
+
+  Configuration:
   
   ```json
   {
@@ -83,6 +87,14 @@ https://github.com/user-attachments/assets/3a0a879d-2db7-4a3f-ab43-796c22a0f1ef
     }
   }
   ```
+
+  When you open VS Code, (like other instructions) make sure to run `Start MCP Debug Server` to start it up, then restart continue plugin (go to plugins and disable/enable).
+
+  (This is annoying and should be fixed... but MCP fails to parse properly if the server can't be reached)
+
+  You'll also need to choose a model capable of using tools.
+
+  When the list of tools pops up, make sure to click "debug" in the list of your tools, and set it to be "Automatic".
 
 </details>
 
