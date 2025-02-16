@@ -13,13 +13,15 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "vscode-mcp-debug.restart",
-        "title": "Start MCP Debug Server"
+        "title": "Restart MCP Debug Server"
       }
     ],
     "configuration": {
@@ -29,6 +31,11 @@
           "type": "number",
           "default": 4711,
           "description": "Port number for the debug server"
+        },
+        "mcpDebug.showServerPathOnStartup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether to show the server path on startup"
         }
       }
     }

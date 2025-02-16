@@ -21,17 +21,24 @@ export function activate(context: vscode.ExtensionContext) {
 
     const config = vscode.workspace.getConfiguration('mcpDebug');
     const server = new DebugServer(config.get<number>('port') ?? 4711);
-    server.start().catch(err => {
-        vscode.window.showErrorMessage(`Failed to start debug server: ${err.message}`);
-    });
+
+    function startServer() {
+        server.start().then(() => {
+            if (config.get<boolean>("showServerPathOnStartup")) {
+                vscode.window.showInformationMessage(`MCP Debug server started: ${mcpServerPath}`);
+            }
+        }).catch(err => {
+            vscode.window.showErrorMessage(`Failed to start debug server: ${err.message}`);
+        });
+    }
+
+    startServer();
 
     let disposable = vscode.commands.registerCommand('vscode-mcp-debug.restart', () => {
         server.stop().catch(err => {
             vscode.window.showErrorMessage(`Failed to stop debug server: ${err.message}`);
         }).then(() => {
-            server.start().catch(err => {
-                vscode.window.showErrorMessage(`Failed to restart debug server: ${err.message}`);
-            });
+            startServer();
         });
     });
 

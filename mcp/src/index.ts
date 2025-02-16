@@ -72,15 +72,39 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
 });
 
+function sleep(ms: number) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
 async function main() {
     try {
         const transport = new StdioServerTransport();
         await server.connect(transport);
         console.error("MCP Debug Server running");
+        return true;
     } catch (error) {
         console.error("Error starting server:", error);
-        process.exit(1);
+        return false;
     }
 }
 
-main();
+// Only try up to 5 times
+const MAX_RETRIES = 5;
+
+// Wait 12s before each subsequent check
+const TIMEOUT = 12000;
+
+// Wait 500ms before first check
+const INITIAL_DELAY = 500;
+
+await sleep(INITIAL_DELAY);
+
+for (let i = 0; i < MAX_RETRIES; i++) {
+    const success = await main();
+    if (success) {
+        break;
+    }
+    await sleep(TIMEOUT);
+}
