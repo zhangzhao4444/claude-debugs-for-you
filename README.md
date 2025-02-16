@@ -1,7 +1,7 @@
 # <img src="./images/claude-debugs-for-you.png" width="64" height="64" alt="description" align="center"> Claude Debugs For You
 
 
-[![Badge](https://img.shields.io/badge/Visual%20Studio%20Marketplace-0.0.5-blue.svg)](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
+[![Badge](https://img.shields.io/badge/Visual%20Studio%20Marketplace-0.0.4-blue.svg)](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
 
 ### Enable Claude (or any other LLM) to interactively debug your code
 
