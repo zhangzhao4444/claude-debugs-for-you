@@ -90,21 +90,24 @@ async function main() {
     }
 }
 
-// Only try up to 5 times
-const MAX_RETRIES = 5;
+// Only try up to 10 times
+const MAX_RETRIES = 10;
 
-// Wait 12s before each subsequent check
-const TIMEOUT = 12000;
+// Wait 500ms before each subsequent check
+const TIMEOUT = 500;
 
 // Wait 500ms before first check
 const INITIAL_DELAY = 500;
 
-await sleep(INITIAL_DELAY);
+(async function() {
+    await sleep(INITIAL_DELAY);
 
-for (let i = 0; i < MAX_RETRIES; i++) {
-    const success = await main();
-    if (success) {
-        break;
+    for (let i = 0; i < MAX_RETRIES; i++) {
+        const success = await main();
+        if (success) {
+            break;
+        }
+        await sleep(TIMEOUT);
     }
-    await sleep(TIMEOUT);
-}
+})();
+
