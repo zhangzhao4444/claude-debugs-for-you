@@ -56,6 +56,15 @@ Does this readme suck? Help me improve it!
 
 ## Demo
 
+### Using [Continue](https://github.com/continuedev/continue)
+
+It figures out the problem, and then suggests a fix, which we just click to apply
+
+https://github.com/user-attachments/assets/3a0a879d-2db7-4a3f-ab43-796c22a0f1ef
+
+
+### Using Claude Desktop
+
 In this example, I made it intentionally very cautious (make no assumptions etc - same prompt as below) but you can ask it to do whatever.
 
 https://github.com/user-attachments/assets/ef6085f7-11a2-4eea-bb60-b5a54873b5d5
