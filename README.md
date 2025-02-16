@@ -17,13 +17,15 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 2. Install the extension
   - If using `.vsix` directly, go to the three dots in "Extensions" in VS Code and choose "Install from VSIX..."
 3. Open a project containing a `.vscode/launch.json` with the first configuration setup to debug a specific file with `${file}`.
+4. On startup, a popup will show that the debug server started and a path to the node binary
+  - This can be disabled in settings (e.g. once you've done it the first time or if you're using /sse)
 
 ### If using node process based method (required for Claude Desktop)
-4. Execute "Start MCP Debug Server" (A popup will show that it started: copy the path to `mcp-debug.js`)
+5. Copy the path of the node binary to `mcp-debug.js` in the popup
 
 <img width="384" alt="image" src="https://github.com/user-attachments/assets/5de31d62-32e5-4eac-83f1-cd6bacc2ab7d" />
 
-5. Paste the following (BUT UPDATE THE PATH!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
+5. Paste the following (BUT UPDATE THE PATH TO THE COPIED ONE!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
 
 ```
 {
@@ -45,8 +47,8 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 ### If using `/sse` based method (e.g. Cursor)
 4. Add the MCP server using the server URL of "http://localhost:4711/sse", or whatever port you setup in settings.
   - You may need to hit "refresh" depending on client: this is required in Cursor
-6. You're ready to debug
-7. See [Run  an Example](#run-an-example) below.
+5. You're ready to debug
+6. See [Run  an Example](#run-an-example) below.
 
 ## Contributing
 
@@ -88,13 +90,13 @@ https://github.com/user-attachments/assets/3a0a879d-2db7-4a3f-ab43-796c22a0f1ef
   }
   ```
 
-  When you open VS Code, (like other instructions) make sure to run `Start MCP Debug Server` to start it up, then restart continue plugin (go to plugins and disable/enable).
-
-  (This is annoying and should be fixed... but MCP fails to parse properly if the server can't be reached)
-
   You'll also need to choose a model capable of using tools.
 
   When the list of tools pops up, make sure to click "debug" in the list of your tools, and set it to be "Automatic".
+
+  ### Troubleshooting
+
+  If you are seeing MCP errors in continue, try disabling / re-enabling the continue plugin
 
 </details>
 
@@ -109,10 +111,9 @@ https://github.com/user-attachments/assets/ef6085f7-11a2-4eea-bb60-b5a54873b5d5
 
 ## Developing
 
-- Cline / Open this repo with VS Code
+- Clone / Open this repo with VS Code
 - Run `npm run install` and `npm run compile`
 - Hit "run" which will open a new VSCode
-    - Run the command in VS Code: "Start MCP Debug Server"
 - Otherwise same as "Getting Started applies"
 - To rebuild, `npm run compile`
 
