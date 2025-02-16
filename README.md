@@ -1,7 +1,7 @@
 # <img src="./images/claude-debugs-for-you.png" width="64" height="64" alt="description" align="center"> Claude Debugs For You
 
 
-[![Badge](https://img.shields.io/badge/Visual%20Studio%20Marketplace-0.0.4-blue.svg)](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
+[![Badge](https://img.shields.io/badge/Visual%20Studio%20Marketplace-0.0.5-blue.svg)](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
 
 ### Enable Claude (or any other LLM) to interactively debug your code
 
@@ -25,7 +25,7 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 
 <img width="384" alt="image" src="https://github.com/user-attachments/assets/5de31d62-32e5-4eac-83f1-cd6bacc2ab7d" />
 
-5. Paste the following (BUT UPDATE THE PATH TO THE COPIED ONE!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
+6. Paste the following (BUT UPDATE THE PATH TO THE COPIED ONE!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
 
 ```
 {
@@ -40,15 +40,20 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 }
 ```
 
-6. Start Claude desktop (or other MCP client)
-7. You're ready to debug
-8. See [Run  an Example](#run-an-example) below.
+7. Start Claude desktop (or other MCP client)
+  - Note: You may need to restart it, if it was already running.
+  - You can skip this step if using Continue/Cursor or other built-in to VS Code
 
 ### If using `/sse` based method (e.g. Cursor)
 4. Add the MCP server using the server URL of "http://localhost:4711/sse", or whatever port you setup in settings.
   - You may need to hit "refresh" depending on client: this is required in Cursor
-5. You're ready to debug
-6. See [Run  an Example](#run-an-example) below.
+5. Start MCP client
+  - Note: You may need to restart it, if it was already running.
+  - You can skip this step if using Continue/Cursor or other built-in to VS Code
+
+### You're ready to debug!
+
+See [Run  an Example](#run-an-example) below, and/or watch a demo video.
 
 ## Contributing
 
