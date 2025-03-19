@@ -400,17 +400,29 @@ export class DebugServer {
                     if (!session) {
                         throw new Error('No active debug session');
                     }
-                    // Get the current stack frame
-                    const frames = await session.customRequest('stackTrace', {
-                        threadId: 1  // You might need to get the actual threadId
-                    });
-                    
-                    if (!frames || !frames.stackFrames || frames.stackFrames.length === 0) {
-                        vscode.window.showErrorMessage('No stack frame available');
-                        break;
-                    }
 
-                    const frameId = frames.stackFrames[0].id;  // Usually use the top frame
+                    const activeStackItem = vscode.debug.activeStackItem;
+
+                    // Grab the active frameId
+                    let frameId = undefined
+                    if (activeStackItem instanceof vscode.DebugStackFrame) {
+                        frameId = activeStackItem.frameId;
+                    }
+                    
+                    // In case activeStackItem.frameId is falsey
+                    if (!frameId) {
+                        // Get the current stack frame
+                        const frames = await session.customRequest('stackTrace', {
+                            threadId: 1  // You might need to get the actual threadId
+                        });
+                        
+                        if (!frames || !frames.stackFrames || frames.stackFrames.length === 0) {
+                            vscode.window.showErrorMessage('No stack frame available');
+                            break;
+                        }
+
+                        frameId = frames.stackFrames[0].id;  // Usually use the top frame
+                    }
 
                     try {
                         const response = await session.customRequest('evaluate', {
