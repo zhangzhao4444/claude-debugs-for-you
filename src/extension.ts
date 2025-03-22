@@ -6,7 +6,7 @@ import * as path from 'path';
 export function activate(context: vscode.ExtensionContext) {
     // Get the storage path for your extension
     const storagePath = context.globalStorageUri.fsPath;
-    
+
     // Ensure the storage directory exists
     fs.mkdirSync(storagePath, { recursive: true });
     const mcpServerPath = path.join(storagePath, 'mcp-debug.js');
@@ -20,29 +20,41 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     const config = vscode.workspace.getConfiguration('mcpDebug');
-    const server = new DebugServer(config.get<number>('port') ?? 4711);
+    const port = config.get<number>('port');
+    const server = new DebugServer(port ?? 4711);
 
     function startServer() {
-        server.start().then(() => {
-            if (config.get<boolean>("showServerPathOnStartup")) {
-                vscode.window.showInformationMessage(`MCP Debug server started: ${mcpServerPath}`);
-            }
-        }).catch(err => {
+        server.start().catch(err => {
             vscode.window.showErrorMessage(`Failed to start debug server: ${err.message}`);
         });
     }
 
-    startServer();
+    if (config.get<boolean>('autostart')) {
+      startServer();
+    }
 
-    let disposable = vscode.commands.registerCommand('vscode-mcp-debug.restart', () => {
-        server.stop().catch(err => {
-            vscode.window.showErrorMessage(`Failed to stop debug server: ${err.message}`);
-        }).then(() => {
-            startServer();
-        });
-    });
-
-    context.subscriptions.push(disposable);
+    context.subscriptions.push(...[
+        vscode.commands.registerCommand('vscode-mcp-debug.restart', () => {
+            server.stop().catch(err => {
+                vscode.window.showErrorMessage(`Failed to stop debug server: ${err.message}`);
+            }).then(() => {
+                startServer();
+            });
+        }),
+        vscode.commands.registerCommand('vscode-mcp-debug.stop', () => {
+            server.stop().catch(err => {
+                vscode.window.showErrorMessage(`Failed to stop debug server: ${err.message}`);
+            });
+        }),
+        vscode.commands.registerCommand('vscode-mcp-debug.copyStdioPath', () => {
+            await vscode.env.clipboard.writetext(mcpServerPath);
+            vscode.window.showInformationMessage(`MCP stdio server path copied to clipboard.`);
+        }),
+        vscode.commands.registerCommand('vscode-mcp-debug.copySseAddress', () => {
+            await vscode.env.clipboard.writetext(`http://localhost:${port}/sse`);
+            vscode.window.showInformationMessage(`MCP sse server address copied to clipboard.`);
+        }),
+    ]);
 }
 
 export function deactivate() {}

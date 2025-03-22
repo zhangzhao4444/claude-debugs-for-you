@@ -21,7 +21,19 @@
     "commands": [
       {
         "command": "vscode-mcp-debug.restart",
-        "title": "Restart MCP Debug Server"
+        "title": "(Re)Start MCP Debug Server"
+      },
+      {
+        "command": "vscode-mcp-debug.stop",
+        "title": "Stop MCP Debug Server"
+      },
+      {
+        "command": "vscode-mcp-debug.copyStdioPath",
+        "title": "Copy MCP Debug Server stdio path to clipboard"
+      },
+      {
+        "command": "vscode-mcp-debug.copySseAddress",
+        "title": "Copy MCP Debug Server sse address to clipboard"
       }
     ],
     "configuration": {
@@ -36,6 +48,11 @@
           "type": "boolean",
           "default": true,
           "description": "Whether to show the server path on startup"
+        },
+        "mcpDebug.autostart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start 'Claude Debugs For You' when opening VS Code"
         }
       }
     }

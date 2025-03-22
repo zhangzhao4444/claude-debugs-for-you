@@ -46,7 +46,7 @@ export class DebugServer {
             name: "Debug Server",
             version: "1.0.0"
         });
-        
+
         // Setup MCP tools to use our existing handlers
         this.mcpServer.tool("listFiles", async (args: any) => {
             const files = await this.handleListFiles(args);
