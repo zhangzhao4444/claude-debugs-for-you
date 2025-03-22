@@ -21,9 +21,7 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
   - This can be disabled in settings (e.g. once you've done it the first time or if you're using /sse)
 
 ### If using node process based method (required for Claude Desktop)
-5. Copy the path of the node binary to `mcp-debug.js` in the popup
-
-<img width="384" alt="image" src="https://github.com/user-attachments/assets/5de31d62-32e5-4eac-83f1-cd6bacc2ab7d" />
+5. Copy the stdio server path to your clipboard by searching vs code commands for "Copy MCP Debug Server stdio path to clipboard"
 
 6. Paste the following (BUT UPDATE THE PATH TO THE COPIED ONE!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
 
@@ -45,9 +43,11 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
   - You can skip this step if using Continue/Cursor or other built-in to VS Code
 
 ### If using `/sse` based method (e.g. Cursor)
-4. Add the MCP server using the server URL of "http://localhost:4711/sse", or whatever port you setup in settings.
+4. Retrieve the MCP server sse address by using the "Copy MCP Debug Server sse address to clipboard" command
+  - You can just write it out server URL of "http://localhost:4711/sse", or whatever port you setup in settings.
+5. Add it wherever you need to based on your client
   - You may need to hit "refresh" depending on client: this is required in Cursor
-5. Start MCP client
+6. Start MCP client
   - Note: You may need to restart it, if it was already running.
   - You can skip this step if using Continue/Cursor or other built-in to VS Code
 
