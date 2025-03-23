@@ -20,10 +20,38 @@
   "contributes": {
     "commands": [
       {
+        "command": "claude-debugs-for-you.showCommands",
+        "title": "Claude Debugs For You: Show All Commands"
+      },
+      {
         "command": "vscode-mcp-debug.restart",
-        "title": "Restart MCP Debug Server"
+        "title": "Claude Debugs For You: (Re)Start Server"
+      },
+      {
+        "command": "vscode-mcp-debug.stop",
+        "title": "Claude Debugs For You: Stop Server"
+      },
+      {
+        "command": "vscode-mcp-debug.setPort",
+        "title": "Claude Debugs For You: Set Port"
+      },
+      {
+        "command": "vscode-mcp-debug.toggleAutostart",
+        "title": "Claude Debugs For You: Toggle Autostart"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vscode-mcp-debug.setPort",
+          "when": "false"
+        },
+        {
+          "command": "vscode-mcp-debug.toggleAutostart",
+          "when": "false"
+        }
+      ]
+    },
     "configuration": {
       "title": "Claude Debugs For You",
       "properties": {
@@ -36,6 +64,11 @@
           "type": "boolean",
           "default": true,
           "description": "Whether to show the server path on startup"
+        },
+        "mcpDebug.autostart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start 'Claude Debugs For You' when opening VS Code"
         }
       }
     }
