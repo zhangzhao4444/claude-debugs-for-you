@@ -153,7 +153,6 @@ export function activate(context: vscode.ExtensionContext) {
 
                         // Now try to start our server
                         await server.start();
-                        vscode.window.showInformationMessage('Debug server successfully started in this window');
                     } catch (startErr: any) {
                         vscode.window.showErrorMessage(`Still failed to start debug server: ${startErr.message}`);
                     }

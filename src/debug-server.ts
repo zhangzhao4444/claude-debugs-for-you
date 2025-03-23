@@ -297,7 +297,6 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
             this.server!.listen(this.port, () => {
                 this._isRunning = true;
                 this.emit('started');
-                vscode.window.showInformationMessage(`Debug server started on port ${this.port}`);
                 resolve();
             }).on('error', reject);
         });
