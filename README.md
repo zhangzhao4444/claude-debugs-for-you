@@ -66,6 +66,8 @@ You can click this status menu for the commands available
 
 ### You're ready to debug!
 
+_[VS Code Debugging Documentation](https://code.visualstudio.com/Docs/editor/debugging)_
+
 Open a project containing a `.vscode/launch.json` with the first configuration setup to debug a specific file with `${file}`.
 
 See [Run  an Example](#run-an-example) below, and/or watch a demo video.
