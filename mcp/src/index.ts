@@ -2,9 +2,43 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+// Try to read port from config file, fallback to default
+function getPortFromConfig(): number {
+    try {
+        // Determine the global storage path based on platform
+        let storagePath: string;
+        const homeDir = os.homedir();
+        
+        if (process.platform === 'darwin') {
+            storagePath = path.join(homeDir, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'jasonmcghee.claude-debugs-for-you');
+        } else if (process.platform === 'win32') {
+            storagePath = path.join(homeDir, 'AppData', 'Roaming', 'Code', 'User', 'globalStorage', 'jasonmcghee.claude-debugs-for-you');
+        } else {
+            // Linux and others
+            storagePath = path.join(homeDir, '.config', 'Code', 'User', 'globalStorage', 'jasonmcghee.claude-debugs-for-you');
+        }
+        
+        const configPath = path.join(storagePath, 'port-config.json');
+        
+        if (fs.existsSync(configPath)) {
+            const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            if (config && typeof config.port === 'number') {
+                return config.port;
+            }
+        }
+    } catch (error) {
+        console.error('Error reading port config:', error);
+    }
+    
+    return 4711; // Default port
+}
 
 async function makeRequest(payload: any): Promise<any> {
-    const port = Number(process.env.MCP_DEBUGGER_PORT || 4711);
+    const port = getPortFromConfig();
     
     return new Promise((resolve, reject) => {
         const data = JSON.stringify(payload);

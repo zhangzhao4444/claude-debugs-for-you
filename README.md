@@ -141,27 +141,15 @@ i am building `longest_substring_with_k_distinct` and for some reason it's not w
 
 ## Configuration
 
-There's a hidden env var you can use to set the port on the MCP side.
-
-```
-"debug": {
-  "command": "node",
-  "args": [
-    "/path/to/mcp-debug.js"
-  ],
-  "env": {
-    "MCP_DEBUGGER_PORT": 4711
-  }
-}
-```
-
-And similarly you may set the port on the vs code side using extensions settings or JSON:
+You can set the port using VS Code extension settings or JSON:
 
 <img width="243" alt="image" src="https://github.com/user-attachments/assets/51037811-b4f1-4c65-9344-f4d14d059be7" />
 
 ```
 "mcpDebug.port": 4711
 ```
+
+The port setting will be automatically used by both the VS Code extension and the MCP server.
 
 ## Short list of ideas
 

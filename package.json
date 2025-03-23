@@ -20,22 +20,38 @@
   "contributes": {
     "commands": [
       {
+        "command": "claude-debugs-for-you.showCommands",
+        "title": "Claude Debugs For You: Show All Commands"
+      },
+      {
         "command": "vscode-mcp-debug.restart",
-        "title": "(Re)Start MCP Debug Server"
+        "title": "Claude Debugs For You: (Re)Start Server"
       },
       {
         "command": "vscode-mcp-debug.stop",
-        "title": "Stop MCP Debug Server"
+        "title": "Claude Debugs For You: Stop Server"
       },
       {
-        "command": "vscode-mcp-debug.copyStdioPath",
-        "title": "Copy MCP Debug Server stdio path to clipboard"
+        "command": "vscode-mcp-debug.setPort",
+        "title": "Claude Debugs For You: Set Port"
       },
       {
-        "command": "vscode-mcp-debug.copySseAddress",
-        "title": "Copy MCP Debug Server sse address to clipboard"
+        "command": "vscode-mcp-debug.toggleAutostart",
+        "title": "Claude Debugs For You: Toggle Autostart"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vscode-mcp-debug.setPort",
+          "when": "false"
+        },
+        {
+          "command": "vscode-mcp-debug.toggleAutostart",
+          "when": "false"
+        }
+      ]
+    },
     "configuration": {
       "title": "Claude Debugs For You",
       "properties": {

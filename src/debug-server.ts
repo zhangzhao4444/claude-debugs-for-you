@@ -1,6 +1,14 @@
 import * as net from 'net';
 import * as http from 'http';
 import * as vscode from 'vscode';
+import { EventEmitter } from 'events';
+
+interface DebugServerEvents {
+    on(event: 'started', listener: () => void): this;
+    on(event: 'stopped', listener: () => void): this;
+    emit(event: 'started'): boolean;
+    emit(event: 'stopped'): boolean;
+}
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 
@@ -34,13 +42,15 @@ const listFilesDescription = "List all files in the workspace. Use this to find 
 const getFileContentDescription = `Get file content with line numbers - you likely need to list files 
 to understand what files are available. Be careful to use absolute paths.`;
 
-export class DebugServer {
+export class DebugServer extends EventEmitter implements DebugServerEvents {
     private server: net.Server | null = null;
     private port: number = 4711;
     private activeTransports: Record<string, SSEServerTransport> = {};
     private mcpServer: McpServer;
+    private _isRunning: boolean = false;
 
     constructor(port?: number) {
+        super();
         this.port = port || 4711;
         this.mcpServer = new McpServer({
             name: "Debug Server",
@@ -116,10 +126,10 @@ export class DebugServer {
                                 },
                                 file: { type: "string" },
                                 line: { type: "number" },
-                                expression: { 
+                                expression: {
                                     description: "An expression to be evaluated in the stack frame of the current breakpoint",
                                     type: "string"
-                                 },
+                                },
                                 condition: {
                                     description: "If needed, a breakpoint condition may be specified to only stop on a breakpoint for some given condition.",
                                     type: "string"
@@ -134,6 +144,59 @@ export class DebugServer {
         }
     ];
 
+    get isRunning(): boolean {
+        return this._isRunning;
+    }
+
+    setPort(port: number): void {
+        this.port = port || 4711;
+    }
+
+    async forceStopExistingServer(): Promise<void> {
+        try {
+            // Send a request to the shutdown endpoint of any existing server
+            await new Promise<void>((resolve, reject) => {
+                const req = http.request({
+                    hostname: 'localhost',
+                    port: this.port,
+                    path: '/shutdown',
+                    method: 'POST',
+                    timeout: 3000 // 3 second timeout
+                }, (res) => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                        if (res.statusCode === 200) {
+                            // Give the server a moment to shut down
+                            setTimeout(resolve, 500);
+                        } else {
+                            reject(new Error(`Unexpected status: ${res.statusCode}`));
+                        }
+                    });
+                });
+
+                req.on('error', (err: NodeJS.ErrnoException) => {
+                    // If we can't connect, there's no server running or it's not ours
+                    if (err.code === 'ECONNREFUSED') {
+                        resolve(); // No server running, so nothing to stop
+                    } else {
+                        reject(err);
+                    }
+                });
+
+                req.on('timeout', () => {
+                    req.destroy();
+                    reject(new Error('Request timed out'));
+                });
+
+                req.end();
+            });
+        } catch (err) {
+            console.error('Error requesting server shutdown:', err);
+            throw new Error('Failed to stop existing server');
+        }
+    }
+
     async start(): Promise<void> {
         if (this.server) {
             throw new Error('Server is already running');
@@ -144,9 +207,19 @@ export class DebugServer {
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
             res.setHeader('Access-Control-Allow-Headers', '*');
-            
+
             if (req.method === 'OPTIONS') {
                 res.writeHead(204).end();
+                return;
+            }
+
+            // Shutdown endpoint - allows another instance to request shutdown of this server
+            if (req.method === 'POST' && req.url === '/shutdown') {
+                this.stop().then(() => {
+                    res.writeHead(200).end('Server shutting down');
+                }).catch(err => {
+                    res.writeHead(500).end(`Error shutting down: ${err.message}`);
+                });
                 return;
             }
 
@@ -206,6 +279,8 @@ export class DebugServer {
 
         return new Promise((resolve, reject) => {
             this.server!.listen(this.port, () => {
+                this._isRunning = true;
+                this.emit('started');
                 vscode.window.showInformationMessage(`Debug server started on port ${this.port}`);
                 resolve();
             }).on('error', reject);
@@ -226,7 +301,7 @@ export class DebugServer {
         }
     }
 
-    private async handleLaunch(payload: { 
+    private async handleLaunch(payload: {
         program: string,
         args?: string[]
     }): Promise<string> {
@@ -238,14 +313,14 @@ export class DebugServer {
         // Try to get launch configurations
         const launchConfig = vscode.workspace.getConfiguration('launch', workspaceFolder.uri);
         const configurations = launchConfig.get<any[]>('configurations');
-        
+
         if (!configurations || configurations.length === 0) {
             throw new Error('No debug configurations found in launch.json');
         }
 
         // Get the first configuration and update it with the current file
-        const config = {...configurations[0]};
-        
+        const config = { ...configurations[0] };
+
         // Replace ${file} with actual file path if it exists in the configuration
         Object.keys(config).forEach(key => {
             if (typeof config[key] === 'string') {
@@ -267,26 +342,26 @@ export class DebugServer {
 
         // Start debugging using the configured launch configuration
         await vscode.debug.startDebugging(workspaceFolder, config);
-        
+
         // Wait for session to be available
         const session = await this.waitForDebugSession();
-    
+
         // Check if we're at a breakpoint
         try {
             const threads = await session.customRequest('threads');
             const threadId = threads.threads[0].id;
-            
+
             const stack = await session.customRequest('stackTrace', { threadId });
             if (stack.stackFrames && stack.stackFrames.length > 0) {
                 const topFrame = stack.stackFrames[0];
                 const currentBreakpoints = vscode.debug.breakpoints.filter(bp => {
                     if (bp instanceof vscode.SourceBreakpoint) {
                         return bp.location.uri.toString() === topFrame.source.path &&
-                               bp.location.range.start.line === (topFrame.line - 1);
+                            bp.location.range.start.line === (topFrame.line - 1);
                     }
                     return false;
                 });
-                
+
                 if (currentBreakpoints.length > 0) {
                     return `Debug session started - Stopped at breakpoint on line ${topFrame.line}`;
                 }
@@ -318,9 +393,9 @@ export class DebugServer {
         });
     }
 
-    private async handleListFiles(payload: { 
-        includePatterns?: string[], 
-        excludePatterns?: string[] 
+    private async handleListFiles(payload: {
+        includePatterns?: string[],
+        excludePatterns?: string[]
     }): Promise<string[]> {
         const workspaceFolders = vscode.workspace.workspaceFolders;
         if (!workspaceFolders) {
@@ -352,8 +427,12 @@ export class DebugServer {
         for (const step of payload.steps) {
             switch (step.type) {
                 case 'setBreakpoint': {
-                    if (!step.line) throw new Error('Line number required');
-                    if (!step.file) throw new Error('File path required');
+                    if (!step.line) {
+                        throw new Error('Line number required');
+                    }
+                    if (!step.file) {
+                        throw new Error('File path required');
+                    }
 
                     // Open the file and make it active
                     const document = await vscode.workspace.openTextDocument(step.file);
@@ -373,7 +452,9 @@ export class DebugServer {
                 }
 
                 case 'removeBreakpoint': {
-                    if (!step.line) throw new Error('Line number required');
+                    if (!step.line) {
+                        throw new Error('Line number required');
+                    }
                     const bps = vscode.debug.breakpoints.filter(bp => {
                         if (bp instanceof vscode.SourceBreakpoint) {
                             return bp.location.range.start.line === step.line! - 1;
@@ -404,18 +485,18 @@ export class DebugServer {
                     const activeStackItem = vscode.debug.activeStackItem;
 
                     // Grab the active frameId
-                    let frameId = undefined
+                    let frameId = undefined;
                     if (activeStackItem instanceof vscode.DebugStackFrame) {
                         frameId = activeStackItem.frameId;
                     }
-                    
+
                     // In case activeStackItem.frameId is falsey
                     if (!frameId) {
                         // Get the current stack frame
                         const frames = await session.customRequest('stackTrace', {
                             threadId: 1  // You might need to get the actual threadId
                         });
-                        
+
                         if (!frames || !frames.stackFrames || frames.stackFrames.length === 0) {
                             vscode.window.showErrorMessage('No stack frame available');
                             break;
@@ -430,7 +511,7 @@ export class DebugServer {
                             frameId: frameId,
                             context: 'repl'
                         });
-                        
+
                         results.push(`Evaluated "${step.expression}": ${response.result}`);
                     } catch (err) {
                         vscode.window.showErrorMessage(`Failed to execute: ${err}`);
@@ -450,6 +531,8 @@ export class DebugServer {
     stop(): Promise<void> {
         return new Promise((resolve) => {
             if (!this.server) {
+                this._isRunning = false;
+                this.emit('stopped');
                 resolve();
                 return;
             }
@@ -461,6 +544,8 @@ export class DebugServer {
 
             this.server.close(() => {
                 this.server = null;
+                this._isRunning = false;
+                this.emit('stopped');
                 resolve();
             });
         });
