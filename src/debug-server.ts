@@ -45,13 +45,15 @@ to understand what files are available. Be careful to use absolute paths.`;
 export class DebugServer extends EventEmitter implements DebugServerEvents {
     private server: net.Server | null = null;
     private port: number = 4711;
+    private portConfigPath: string | null = null;
     private activeTransports: Record<string, SSEServerTransport> = {};
     private mcpServer: McpServer;
     private _isRunning: boolean = false;
 
-    constructor(port?: number) {
+    constructor(port?: number, portConfigPath?: string) {
         super();
         this.port = port || 4711;
+        this.portConfigPath = portConfigPath || null;
         this.mcpServer = new McpServer({
             name: "Debug Server",
             version: "1.0.0"
@@ -150,6 +152,17 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
 
     setPort(port: number): void {
         this.port = port || 4711;
+
+        // Update port in configuration file if available
+        if (this.portConfigPath && typeof port === 'number') {
+            try {
+                const fs = require('fs');
+                fs.writeFileSync(this.portConfigPath, JSON.stringify({ port }));
+            } catch (err) {
+                console.error('Failed to update port configuration file:', err);
+                // We'll still use the new port even if saving to file fails
+            }
+        }
     }
 
     async forceStopExistingServer(): Promise<void> {

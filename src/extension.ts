@@ -30,7 +30,7 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.window.showErrorMessage(`Failed to write port configuration: ${err.message}`);
     }
 
-    const server = new DebugServer(port);
+    const server = new DebugServer(port, portConfigPath);
 
     // Create status bar item
     const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
@@ -56,7 +56,9 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(async e => {
             if (e.affectsConfiguration('mcpDebug.port')) {
-                const newPort = config.get<number>('port') ?? 4711;
+                // Always reload the latest configuration
+                const updatedConfig = vscode.workspace.getConfiguration('mcpDebug');
+                const newPort = updatedConfig.get<number>('port') ?? 4711;
 
                 // Update port configuration file
                 try {
@@ -65,6 +67,9 @@ export function activate(context: vscode.ExtensionContext) {
                 } catch (err: any) {
                     vscode.window.showErrorMessage(`Failed to write port configuration: ${err.message}`);
                 }
+
+                // Update server's port setting
+                server.setPort(newPort);
 
                 if (server.isRunning) {
                     // Port changed, restart server with new port
@@ -82,7 +87,8 @@ export function activate(context: vscode.ExtensionContext) {
 
     async function startServer() {
         // Always get the current port from config
-        const currentPort = config.get<number>('port') ?? 4711;
+        const updatedConfig = vscode.workspace.getConfiguration('mcpDebug');
+        const currentPort = updatedConfig.get<number>('port') ?? 4711;
         server.setPort(currentPort);
 
         try {
@@ -115,21 +121,23 @@ export function activate(context: vscode.ExtensionContext) {
         }
     }
 
-    if (config.get<boolean>('autostart')) {
+    const startupConfig = vscode.workspace.getConfiguration('mcpDebug');
+    if (startupConfig.get<boolean>('autostart')) {
         void startServer();
     }
 
     context.subscriptions.push(
         statusBarItem,
         vscode.commands.registerCommand('claude-debugs-for-you.showCommands', async () => {
-            const currentPort = config.get<number>('port') ?? 4711;
+            const updatedConfig = vscode.workspace.getConfiguration('mcpDebug');
+            const currentPort = updatedConfig.get<number>('port') ?? 4711;
             const commands = [
                 // Show either Start or Stop based on server state
                 server.isRunning
                     ? { label: "Stop Server", command: 'vscode-mcp-debug.stop' }
                     : { label: "Start Server", command: 'vscode-mcp-debug.restart' },
                 { label: `Set Port (currently: ${currentPort})`, command: 'vscode-mcp-debug.setPort' },
-                { label: `${config.get<boolean>('autostart') ? 'Disable' : 'Enable'} Autostart`, command: 'vscode-mcp-debug.toggleAutostart' },
+                { label: `${updatedConfig.get<boolean>('autostart') ? 'Disable' : 'Enable'} Autostart`, command: 'vscode-mcp-debug.toggleAutostart' },
                 { label: "Copy stdio path", command: 'vscode-mcp-debug.copyStdioPath' },
                 { label: "Copy SSE address", command: 'vscode-mcp-debug.copySseAddress' }
             ];
@@ -166,12 +174,15 @@ export function activate(context: vscode.ExtensionContext) {
         }),
         vscode.commands.registerCommand('vscode-mcp-debug.copySseAddress', async () => {
             // Always get the latest port from config
-            const currentPort = config.get<number>('port') ?? 4711;
+            const updatedConfig = vscode.workspace.getConfiguration('mcpDebug');
+            const currentPort = updatedConfig.get<number>('port') ?? 4711;
             await vscode.env.clipboard.writeText(`http://localhost:${currentPort}/sse`);
             vscode.window.showInformationMessage(`MCP sse server address copied to clipboard.`);
         }),
         vscode.commands.registerCommand('vscode-mcp-debug.setPort', async () => {
-            const currentPort = config.get<number>('port') ?? 4711;
+            // Always get the latest configuration
+            const updatedConfig = vscode.workspace.getConfiguration('mcpDebug');
+            const currentPort = updatedConfig.get<number>('port') ?? 4711;
             const newPort = await vscode.window.showInputBox({
                 prompt: 'Enter port number for MCP Debug Server',
                 placeHolder: 'Port number',
@@ -187,7 +198,7 @@ export function activate(context: vscode.ExtensionContext) {
 
             if (newPort) {
                 const portNum = parseInt(newPort);
-                await config.update('port', portNum, vscode.ConfigurationTarget.Global);
+                await updatedConfig.update('port', portNum, vscode.ConfigurationTarget.Global);
 
                 // Update port configuration file
                 try {
@@ -196,6 +207,9 @@ export function activate(context: vscode.ExtensionContext) {
                 } catch (err: any) {
                     vscode.window.showErrorMessage(`Failed to write port configuration: ${err.message}`);
                 }
+
+                // Update server's port setting directly
+                server.setPort(portNum);
 
                 if (server.isRunning) {
                     const restart = await vscode.window.showInformationMessage(
@@ -210,8 +224,9 @@ export function activate(context: vscode.ExtensionContext) {
             }
         }),
         vscode.commands.registerCommand('vscode-mcp-debug.toggleAutostart', async () => {
-            const currentAutostart = config.get<boolean>('autostart') ?? true;
-            await config.update('autostart', !currentAutostart, vscode.ConfigurationTarget.Global);
+            const updatedConfig = vscode.workspace.getConfiguration('mcpDebug');
+            const currentAutostart = updatedConfig.get<boolean>('autostart') ?? true;
+            await updatedConfig.update('autostart', !currentAutostart, vscode.ConfigurationTarget.Global);
             vscode.window.showInformationMessage(`Autostart ${!currentAutostart ? 'enabled' : 'disabled'}`);
         }),
     );
