@@ -11,3 +11,4 @@ src/**
 *.visx
 mcp/**
 !mcp/build/index.js
+.idea

@@ -4,6 +4,17 @@ All notable changes to the "claude-debugs-for-you" extension will be documented 
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 0.0.7
+
+- Introduces the status menu
+- Adds multi-window support
+- Improves configuration capabilities and experience
+- Simplifies first-time setup
+
+## 0.0.6
+
+- Adds automatic startup and stability improvements
+
 ## [0.0.4]
 - Add /sse support
 
