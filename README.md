@@ -16,14 +16,22 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 1. Download the extension from [releases](https://github.com/jasonjmcghee/claude-debugs-for-you/releases/) or [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
 2. Install the extension
   - If using `.vsix` directly, go to the three dots in "Extensions" in VS Code and choose "Install from VSIX..."
-3. Open a project containing a `.vscode/launch.json` with the first configuration setup to debug a specific file with `${file}`.
-4. On startup, a popup will show that the debug server started and a path to the node binary
-  - This can be disabled in settings (e.g. once you've done it the first time or if you're using /sse)
+3. You will see a new status menu item "Claude Debugs For You" which shows if it is running properly (check) or failed to startup (x)
 
-### If using node process based method (required for Claude Desktop)
-5. Copy the stdio server path to your clipboard by searching vs code commands for "Copy MCP Debug Server stdio path to clipboard"
+<img width="314" alt="Screenshot 2025-03-22 at 9 51 22 PM" src="https://github.com/user-attachments/assets/2cd65e0d-4c1d-4fb6-b9ea-3995149b4043" />
 
-6. Paste the following (BUT UPDATE THE PATH TO THE COPIED ONE!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
+You can click this status menu for the commands available
+
+<img width="510" alt="Screenshot 2025-03-22 at 9 59 22 PM" src="https://github.com/user-attachments/assets/54e339e3-81f8-4ef2-a201-6742aa2c97a8" />
+
+### Follow one of the options below, depending on your setup
+
+<details>
+  <summary>If using stdio (classic, required for Claude Desktop)</summary>
+
+4. Copy the stdio server path to your clipboard by searching vs code commands for "Copy MCP Debug Server stdio path to clipboard"
+
+5. Paste the following (BUT UPDATE THE PATH TO THE COPIED ONE!) in your `claude_desktop_config.json` or edit accordingly if you use other MCP servers
 
 ```
 {
@@ -38,20 +46,27 @@ It's language-agnostic, assuming debugger console support and valid launch.json 
 }
 ```
 
-7. Start Claude desktop (or other MCP client)
-  - Note: You may need to restart it, if it was already running.
-  - You can skip this step if using Continue/Cursor or other built-in to VS Code
+6. Start Claude desktop (or other MCP client)
+    1. Note: You may need to restart it, if it was already running.
+    2. You can skip this step if using Continue/Cursor or other built-in to VS Code
+</details>
 
-### If using `/sse` based method (e.g. Cursor)
+<details>
+  <summary>If using `/sse` (e.g. Cursor)</summary>
+
 4. Retrieve the MCP server sse address by using the "Copy MCP Debug Server sse address to clipboard" command
-  - You can just write it out server URL of "http://localhost:4711/sse", or whatever port you setup in settings.
+    1. You can just write it out server URL of "http://localhost:4711/sse", or whatever port you setup in settings.
 5. Add it wherever you need to based on your client
-  - You may need to hit "refresh" depending on client: this is required in Cursor
+    1. You may need to hit "refresh" depending on client: this is required in Cursor
 6. Start MCP client
-  - Note: You may need to restart it, if it was already running.
-  - You can skip this step if using Continue/Cursor or other built-in to VS Code
+   1. Note: You may need to restart it, if it was already running.
+   2. You can skip this step if using Continue/Cursor or other built-in to VS Code
+
+</details>
 
 ### You're ready to debug!
+
+Open a project containing a `.vscode/launch.json` with the first configuration setup to debug a specific file with `${file}`.
 
 See [Run  an Example](#run-an-example) below, and/or watch a demo video.
 
@@ -139,17 +154,14 @@ Enter the prompt:
 i am building `longest_substring_with_k_distinct` and for some reason it's not working quite right. can you debug it step by step using breakpoints and evaluating expressions to figure out where it goes wrong? make sure to use the debug tool to get access and debug! don't make any guesses as to the problem up front. DEBUG!
 ```
 
-## Configuration
+## Other things worth mentioning
 
-You can set the port using VS Code extension settings or JSON:
+When you start multiple vs code windows, you'll see a pop-up. You can gracefully hand-off "Claude Debugs For You" between windows.
 
-<img width="243" alt="image" src="https://github.com/user-attachments/assets/51037811-b4f1-4c65-9344-f4d14d059be7" />
+You can also disable autostart. Then you'll just need to click the status menu and select "Start Server".
 
-```
-"mcpDebug.port": 4711
-```
+<img width="395" alt="Screenshot 2025-03-22 at 10 08 52 PM" src="https://github.com/user-attachments/assets/2b6d1b61-a2c6-4447-8054-b4dd02a716e8" />
 
-The port setting will be automatically used by both the VS Code extension and the MCP server.
 
 ## Short list of ideas
 
