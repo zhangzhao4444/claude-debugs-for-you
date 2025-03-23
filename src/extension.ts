@@ -94,26 +94,73 @@ export function activate(context: vscode.ExtensionContext) {
         try {
             await server.start();
         } catch (err: any) {
+            // Stop our own server
+            await server.stop();
+
             // Check if this is likely a port conflict (server already running)
             const nodeErr = err as NodeJS.ErrnoException;
             if ((nodeErr.code === 'EADDRINUSE') || (nodeErr.message && nodeErr.message.includes('already running'))) {
                 const response = await vscode.window.showInformationMessage(
                     `Failed to start debug server. Another server is likely already running in a different VS Code window. Would you like to stop it and start the server in this window?`,
-                    'Yes', 'No'
+                    'Yes', 'No', 'Disable Autostart'
                 );
 
                 if (response === 'Yes') {
                     try {
                         // First try to stop any existing server
                         await server.forceStopExistingServer();
-                        // Wait a moment for port to be released
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        // Then try to start our server
+
+                        // Wait for the port to be released with retry logic
+                        let portAvailable = false;
+                        let retryCount = 0;
+                        const maxRetries = 5;
+                        const currentPort = server.getPort();
+
+                        while (!portAvailable && retryCount < maxRetries) {
+                            try {
+                                // Check if port is available
+                                const net = require('net');
+                                const testServer = net.createServer();
+
+                                await new Promise<void>((resolve, reject) => {
+                                    testServer.once('error', (err: any) => {
+                                        testServer.close();
+                                        if (err.code === 'EADDRINUSE') {
+                                            reject(new Error('Port still in use'));
+                                        } else {
+                                            reject(err);
+                                        }
+                                    });
+
+                                    testServer.once('listening', () => {
+                                        testServer.close();
+                                        portAvailable = true;
+                                        resolve();
+                                    });
+
+                                    testServer.listen(currentPort);
+                                });
+                            } catch (err) {
+                                // Port still in use, wait and retry
+                                await new Promise(resolve => setTimeout(resolve, 500));
+                                retryCount++;
+                            }
+                        }
+
+                        if (!portAvailable) {
+                            throw new Error(`Port ${currentPort} is still in use after ${maxRetries} attempts to release it`);
+                        }
+
+                        // Now try to start our server
                         await server.start();
                         vscode.window.showInformationMessage('Debug server successfully started in this window');
                     } catch (startErr: any) {
                         vscode.window.showErrorMessage(`Still failed to start debug server: ${startErr.message}`);
                     }
+                } else if (response === 'Disable Autostart') {
+                    // Update autostart configuration to false
+                    await startupConfig.update('autostart', false, vscode.ConfigurationTarget.Global);
+                    vscode.window.showInformationMessage('Autostart has been disabled');
                 }
             } else {
                 vscode.window.showErrorMessage(`Failed to start debug server: ${err.message}`);

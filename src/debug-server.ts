@@ -165,6 +165,10 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         }
     }
 
+    getPort(): number {
+        return this.port;
+    }
+
     async forceStopExistingServer(): Promise<void> {
         try {
             // Send a request to the shutdown endpoint of any existing server
@@ -228,9 +232,8 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
 
             // Shutdown endpoint - allows another instance to request shutdown of this server
             if (req.method === 'POST' && req.url === '/shutdown') {
-                this.stop().then(() => {
-                    res.writeHead(200).end('Server shutting down');
-                }).catch(err => {
+                res.writeHead(200).end('Server shutting down');
+                this.stop().catch(err => {
                     res.writeHead(500).end(`Error shutting down: ${err.message}`);
                 });
                 return;
