@@ -1,5 +1,6 @@
 # <img src="./images/claude-debugs-for-you.png" width="64" height="64" alt="description" align="center"> Claude Debugs For You
 
+_aka Vibe Debugging_
 
 [![Badge](https://img.shields.io/badge/Visual%20Studio%20Marketplace-0.0.7-blue.svg)](https://marketplace.visualstudio.com/items?itemName=JasonMcGhee.claude-debugs-for-you)
 
