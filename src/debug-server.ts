@@ -355,11 +355,15 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
             });
         }
 
-        // Start debugging using the configured launch configuration
-        await vscode.debug.startDebugging(workspaceFolder, config);
+        // Check if we're already debugging
+        let session = vscode.debug.activeDebugSession;
+        if (! session) {
+            // Start debugging using the configured launch configuration
+            await vscode.debug.startDebugging(workspaceFolder, config);
 
-        // Wait for session to be available
-        const session = await this.waitForDebugSession();
+            // Wait for session to be available
+            session = await this.waitForDebugSession();
+        }
 
         // Check if we're at a breakpoint
         try {
