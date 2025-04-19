@@ -4,6 +4,14 @@ All notable changes to the "claude-debugs-for-you" extension will be documented 
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## 0.1.0
+
+- Fixes /sse use via fixing to properly use zod
+
+## 0.0.9
+
+- Fixes bug with tool descriptions
+
 ## 0.0.8
 
 - Adds support to resume debugging if already running and LLM requests launch.
