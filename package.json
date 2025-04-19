@@ -2,7 +2,7 @@
   "name": "claude-debugs-for-you",
   "displayName": "Claude Debugs for You",
   "description": "Enable an MCP Client, such as Claude Desktop to directly debug code with breakpoints",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "repository": "https://github.com/jasonjmcghee/claude-debugs-for-you",
   "author": "Jason McGhee",
   "publisher": "JasonMcGhee",
