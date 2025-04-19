@@ -60,17 +60,17 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         });
 
         // Setup MCP tools to use our existing handlers
-        this.mcpServer.tool("listFiles", async (args: any) => {
+        this.mcpServer.tool("listFiles", listFilesDescription, async (args: any) => {
             const files = await this.handleListFiles(args);
             return { content: [{ type: "text", text: JSON.stringify(files) }] };
         });
 
-        this.mcpServer.tool("getFileContent", async (args: any) => {
+        this.mcpServer.tool("getFileContent", getFileContentDescription, async (args: any) => {
             const content = await this.handleGetFile(args);
             return { content: [{ type: "text", text: content }] };
         });
 
-        this.mcpServer.tool("debug", async (args: any) => {
+        this.mcpServer.tool("debug", debugDescription, async (args: any) => {
             const results = await this.handleDebug(args);
             return { content: [{ type: "text", text: results.join('\n') }] };
         });
