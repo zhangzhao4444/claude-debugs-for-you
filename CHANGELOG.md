@@ -4,6 +4,12 @@ All notable changes to the "claude-debugs-for-you" extension will be documented 
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+
+## 0.1.1
+
+- Fixes issue with Claude Desktop not detecting tools
+
+
 ## 0.1.0
 
 - Fixes /sse use via fixing to properly use zod
