@@ -97,7 +97,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         this.portConfigPath = portConfigPath || null;
         this.mcpServer = new McpServer({
             name: "Debug Server",
-            version: "1.0.0"
+            version: "1.0.0",
         });
 
         // Setup MCP tools to use our existing handlers
