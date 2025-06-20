@@ -3,6 +3,7 @@ import * as http from 'http';
 import * as vscode from 'vscode';
 import { EventEmitter } from 'events';
 import { z } from 'zod';
+import * as fs from 'fs';
 
 interface DebugServerEvents {
     on(event: 'started', listener: () => void): this;
@@ -84,7 +85,7 @@ const tools = [
     },
 ];
 export class DebugServer extends EventEmitter implements DebugServerEvents {
-    private server: net.Server | null = null;
+    private server: http.Server | null = null;
     private port: number = 4711;
     private portConfigPath: string | null = null;
     private activeTransports: Record<string, SSEServerTransport> = {};
@@ -127,7 +128,6 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         // Update port in configuration file if available
         if (this.portConfigPath && typeof port === 'number') {
             try {
-                const fs = require('fs');
                 fs.writeFileSync(this.portConfigPath, JSON.stringify({ port }));
             } catch (err) {
                 console.error('Failed to update port configuration file:', err);
@@ -150,9 +150,9 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
                     path: '/shutdown',
                     method: 'POST',
                     timeout: 3000 // 3 second timeout
-                }, (res) => {
+                }, (res: http.IncomingMessage) => {
                     let data = '';
-                    res.on('data', chunk => data += chunk);
+                    res.on('data', (chunk: Buffer) => data += chunk);
                     res.on('end', () => {
                         if (res.statusCode === 200) {
                             // Give the server a moment to shut down
@@ -190,7 +190,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
             throw new Error('Server is already running');
         }
 
-        this.server = http.createServer(async (req, res) => {
+        this.server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
             // Handle CORS
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -213,7 +213,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
             // Legacy TCP-style endpoint
             if (req.method === 'POST' && req.url === '/tcp') {
                 let body = '';
-                req.on('data', chunk => body += chunk);
+                req.on('data', (chunk: Buffer) => body += chunk);
                 req.on('end', async () => {
                     try {
                         const request = JSON.parse(body);
@@ -344,7 +344,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
             const stack = await session.customRequest('stackTrace', { threadId });
             if (stack.stackFrames && stack.stackFrames.length > 0) {
                 const topFrame = stack.stackFrames[0];
-                const currentBreakpoints = vscode.debug.breakpoints.filter(bp => {
+                const currentBreakpoints = vscode.debug.breakpoints.filter((bp: vscode.Breakpoint) => {
                     if (bp instanceof vscode.SourceBreakpoint) {
                         return bp.location.uri.toString() === topFrame.source.path &&
                             bp.location.range.start.line === (topFrame.line - 1);
@@ -399,7 +399,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         for (const folder of workspaceFolders) {
             const relativePattern = new vscode.RelativePattern(folder, `{${includePatterns.join(',')}}`);
             const foundFiles = await vscode.workspace.findFiles(relativePattern, `{${excludePatterns.join(',')}}`);
-            files.push(...foundFiles.map(file => file.fsPath));
+            files.push(...foundFiles.map((file: vscode.Uri) => file.fsPath));
         }
 
         return files;
@@ -408,7 +408,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
     private async handleGetFile(payload: { path: string }): Promise<string> {
         const doc = await vscode.workspace.openTextDocument(payload.path);
         const lines = doc.getText().split('\n');
-        return lines.map((line, i) => `${i + 1}: ${line}`).join('\n');
+        return lines.map((line: string, i: number) => `${i + 1}: ${line}`).join('\n');
     }
 
     private async handleDebug(payload: { steps: DebugStep[] }): Promise<string[]> {
@@ -445,7 +445,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
                     if (!step.line) {
                         throw new Error('Line number required');
                     }
-                    const bps = vscode.debug.breakpoints.filter(bp => {
+                    const bps = vscode.debug.breakpoints.filter((bp: vscode.Breakpoint) => {
                         if (bp instanceof vscode.SourceBreakpoint) {
                             return bp.location.range.start.line === step.line! - 1;
                         }

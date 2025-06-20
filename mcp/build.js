@@ -15,10 +15,10 @@ async function build() {
     platform: 'node',
     target: 'node20',
     outfile: 'build/index.js',
-    minify: true,
+    minify: false,
     sourcemap: true,
     external: [],
-    format: 'cjs',
+    format: 'esm',
     banner: {
       js: '#!/usr/bin/env node',
     },
@@ -28,6 +28,9 @@ async function build() {
 
   // Make the output file executable
   await chmod('build/index.js', 0o755);
+  
+  console.log('Build completed successfully!');
+  console.log('Output file: build/index.js');
 }
 
 build().catch((err) => {
