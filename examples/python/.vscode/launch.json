@@ -39,6 +39,13 @@
                 }
             ],
             "justMyCode": true
+        },
+        {
+            "name": "Python: Debug longest_substring_with_k_distinct",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/python/longest_substring_with_k_distinct.py",
+            "console": "integratedTerminal"
         }
     ]
 }

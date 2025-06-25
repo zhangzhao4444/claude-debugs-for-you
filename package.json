@@ -1,11 +1,11 @@
 {
-  "name": "claude-debugs-for-you",
-  "displayName": "Claude Debugs for You",
-  "description": "Enable an MCP Client, such as Claude Desktop to directly debug code with breakpoints",
-  "version": "0.1.1",
-  "repository": "https://github.com/jasonjmcghee/claude-debugs-for-you",
-  "author": "Jason McGhee",
-  "publisher": "JasonMcGhee",
+  "name": "llm-debugger",
+  "displayName": "LLM Debugger",
+  "description": "Enable an MCP Client, such as cursor to directly debug code with breakpoints",
+  "version": "0.2.1",
+  "repository": "https://github.com/zhangzhao4444/claude-debugs-for-you",
+  "author": "zhangzhao4444",
+  "publisher": "zhangzhao4444",
   "icon": "images/claude-debugs-for-you.png",
   "engines": {
     "vscode": "^1.96.0"

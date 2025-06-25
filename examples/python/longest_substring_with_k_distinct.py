@@ -24,4 +24,4 @@ def longest_substring_with_k_distinct(s: str, k: int) -> int:
     return max_length
 
 if __name__ == "__main__":
-    longest_substring_with_k_distinct("aaabaabaaa", 2)
+    print(longest_substring_with_k_distinct("aaabaabaaa", 2))

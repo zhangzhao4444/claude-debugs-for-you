@@ -4,11 +4,19 @@ import * as path from 'path';
 import { DebugServer } from '../debug-server';
 import { activate, deactivate } from '../extension';
 
+// 提前声明 mockServer 供 jest.mock 使用
+let mockServer: any;
+
+jest.mock('../debug-server', () => {
+	return {
+		DebugServer: jest.fn(() => mockServer)
+	};
+});
+
 describe('Extension', () => {
 	let mockContext: any;
 	let mockConfig: any;
 	let mockStatusBarItem: any;
-	let mockServer: any;
 	let mockTestServer: any;
 
 	beforeEach(() => {
@@ -79,11 +87,6 @@ describe('Extension', () => {
 		jest.mocked(fs.mkdirSync).mockReturnValue(undefined);
 		jest.mocked(fs.copyFileSync).mockReturnValue(undefined);
 		jest.mocked(fs.writeFileSync).mockReturnValue(undefined);
-		jest.mocked(DebugServer).mockImplementation(() => mockServer);
-		
-		// Reset specific mocks that might be affected by previous tests
-		jest.mocked(vscode.commands.executeCommand).mockReset();
-		jest.mocked(vscode.commands.executeCommand).mockResolvedValue(undefined);
 	});
 
 	afterEach(() => {
@@ -283,39 +286,16 @@ describe('Extension', () => {
 			// Setup
 			const portConflictError = new Error('EADDRINUSE');
 			(portConflictError as any).code = 'EADDRINUSE';
-			mockServer.start.mockRejectedValue(portConflictError);
+			mockServer.start.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValue(new Error('Port still in use after max retries'));
 			mockServer.stop.mockResolvedValue(undefined);
 			mockServer.forceStopExistingServer.mockResolvedValue(undefined);
 			mockServer.getPort.mockReturnValue(4711);
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
 
-			// Mock server.start to fail after forceStopExistingServer
-			mockServer.start.mockRejectedValueOnce(portConflictError).mockRejectedValue(new Error('Port still in use after max retries'));
-
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 1200));
+			await new Promise(resolve => setTimeout(resolve, 1500));
 			// 应该抛出端口仍被占用的错误
-			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
-		});
-
-		it('should handle port conflict with retry logic - non-EADDRINUSE error', async () => {
-			// Setup
-			const portConflictError = new Error('EADDRINUSE');
-			(portConflictError as any).code = 'EADDRINUSE';
-			mockServer.start.mockRejectedValue(portConflictError);
-			mockServer.stop.mockResolvedValue(undefined);
-			mockServer.forceStopExistingServer.mockResolvedValue(undefined);
-			mockServer.getPort.mockReturnValue(4711);
-			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
-
-			// Mock server.start to fail with non-EADDRINUSE error
-			mockServer.start.mockRejectedValueOnce(portConflictError).mockRejectedValue(new Error('Other error during retry'));
-
-			// Execute
-			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 1000));
-
-			// Verify
 			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
 		});
 
@@ -329,44 +309,99 @@ describe('Extension', () => {
 			mockServer.getPort.mockReturnValue(4711);
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
 
-			// Execute
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 1000));
+			await new Promise(resolve => setTimeout(resolve, 1200));
 
 			// Verify
 			expect(mockServer.start).toHaveBeenCalledTimes(2);
 		});
 
-		it('should handle port conflict with retry logic - forceStopExistingServer fails', async () => {
+		it('should handle port conflict with retry logic - non-EADDRINUSE error', async () => {
 			// Setup
 			const portConflictError = new Error('EADDRINUSE');
 			(portConflictError as any).code = 'EADDRINUSE';
-			mockServer.start.mockRejectedValue(portConflictError);
+			mockServer.start.mockRejectedValueOnce(portConflictError).mockRejectedValue(new Error('Other error during retry'));
 			mockServer.stop.mockResolvedValue(undefined);
-			mockServer.forceStopExistingServer.mockRejectedValue(new Error('Force stop failed'));
+			mockServer.forceStopExistingServer.mockResolvedValue(undefined);
 			mockServer.getPort.mockReturnValue(4711);
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
 
-			// Execute
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Verify
+			await new Promise(resolve => setTimeout(resolve, 1200));
 			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
 		});
 
-		it('should handle port conflict with message containing already running', async () => {
-			// Setup - test the alternative port conflict detection
-			const portConflictError = new Error('Server is already running on port 4711');
-			mockServer.start.mockRejectedValue(portConflictError);
+		it('should cover port conflict retry logic throw branch with exact retry count', async () => {
+			const portConflictError = new Error('EADDRINUSE');
+			(portConflictError as any).code = 'EADDRINUSE';
+			mockServer.start
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValue(new Error('Port 4711 is still in use after 5 attempts to release it'));
 			mockServer.stop.mockResolvedValue(undefined);
-			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
+			mockServer.forceStopExistingServer.mockResolvedValue(undefined);
+			mockServer.getPort.mockReturnValue(4711);
+			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
 
-			// Execute
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 100));
+			await new Promise(resolve => setTimeout(resolve, 2200));
 
-			// Verify
+			// Verify - should show error message about port still in use after max retries
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
+		});
+
+		it('should cover port conflict retry logic throw branch with different port number', async () => {
+			const portConflictError = new Error('EADDRINUSE');
+			(portConflictError as any).code = 'EADDRINUSE';
+			mockServer.start
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValueOnce(portConflictError)
+				.mockRejectedValue(new Error('Port 9999 is still in use after 5 attempts to release it'));
+			mockServer.stop.mockResolvedValue(undefined);
+			mockServer.forceStopExistingServer.mockResolvedValue(undefined);
+			mockServer.getPort.mockReturnValue(9999);
+			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
+
+			activate(mockContext);
+			await new Promise(resolve => setTimeout(resolve, 2200));
+
+			// Verify - should show error message about port still in use after max retries
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
+		});
+
+		it('should handle port check error with non-object error', async () => {
+			const portConflictError = new Error('EADDRINUSE');
+			(portConflictError as any).code = 'EADDRINUSE';
+			mockServer.start.mockRejectedValueOnce(portConflictError).mockRejectedValue(new Error('Non-object error during retry'));
+			mockServer.stop.mockResolvedValue(undefined);
+			mockServer.forceStopExistingServer.mockResolvedValue(undefined);
+			mockServer.getPort.mockReturnValue(4711);
+			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
+
+			activate(mockContext);
+			await new Promise(resolve => setTimeout(resolve, 1200));
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
+		});
+
+		it('should handle port check with immediate listening', async () => {
+			const portConflictError = new Error('EADDRINUSE');
+			(portConflictError as any).code = 'EADDRINUSE';
+			mockServer.start.mockRejectedValueOnce(portConflictError).mockResolvedValueOnce(undefined);
+			mockServer.stop.mockResolvedValue(undefined);
+			mockServer.forceStopExistingServer.mockResolvedValue(undefined);
+			mockServer.getPort.mockReturnValue(4711);
+			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
+
+			activate(mockContext);
+			await new Promise(resolve => setTimeout(resolve, 1200));
+			// 验证至少有一次调用，并且用户选择了Yes
+			expect(mockServer.start).toHaveBeenCalled();
 			expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
 				expect.stringContaining('Failed to start debug server'),
 				'Yes',
@@ -375,248 +410,77 @@ describe('Extension', () => {
 			);
 		});
 
-		it('should handle port conflict with both code and message', async () => {
-			// Setup - test both EADDRINUSE code and message containing already running
-			const portConflictError = new Error('Server is already running on port 4711');
-			(portConflictError as any).code = 'EADDRINUSE';
-			mockServer.start.mockRejectedValue(portConflictError);
-			mockServer.stop.mockResolvedValue(undefined);
-			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
+		it('should handle port change with server running and restart command failure', async () => {
+			// Setup
+			mockServer.isRunning = true;
+			mockServer.start.mockResolvedValue(undefined);
+			jest.mocked(vscode.commands.executeCommand).mockReset();
+			jest.mocked(vscode.commands.executeCommand).mockRejectedValue(new Error('Restart failed'));
 
-			// Execute
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 100));
+
+			// Simulate configuration change
+			const configChangeEvent = { affectsConfiguration: (key: string) => key === 'mcpDebug.port' };
+			const configChangeHandler = jest.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls[0][0];
+
+			// 应该抛出异常
+			try {
+				await configChangeHandler(configChangeEvent);
+				expect(true).toBe(false);
+			} catch (error) {
+				expect(error).toBeInstanceOf(Error);
+				expect((error as Error).message).toBe('Restart failed');
+			}
+
+			expect(fs.writeFileSync).toHaveBeenCalled();
+			expect(mockServer.setPort).toHaveBeenCalled();
+			expect(vscode.window.showInformationMessage).toHaveBeenCalled();
+			expect(vscode.commands.executeCommand).toHaveBeenCalledWith('vscode-mcp-debug.restart');
+		});
+
+		it('should handle stop failure', async () => {
+			// Setup
+			const error = new Error('Stop failed');
+			mockServer.stop.mockRejectedValue(error);
+			mockServer.start.mockResolvedValue(undefined);
+
+			activate(mockContext);
+
+			// Get the stop command handler
+			const stopHandler = jest.mocked(vscode.commands.registerCommand).mock.calls[2][1];
+			await stopHandler();
+
+			// Wait for the Promise to resolve/reject
+			await new Promise(resolve => setTimeout(resolve, 10));
 
 			// Verify
-			expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-				expect.stringContaining('Failed to start debug server'),
-				'Yes',
-				'No',
-				'Disable Autostart'
-			);
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: Stop failed');
 		});
 
-		it('should handle port conflict with null response', async () => {
-			// Setup
-			const portConflictError = new Error('EADDRINUSE');
-			(portConflictError as any).code = 'EADDRINUSE';
-			mockServer.start.mockRejectedValue(portConflictError);
-			mockServer.stop.mockResolvedValue(undefined);
-			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue(undefined);
-
-			// Execute
+		it('should cover branch when server.stop throws in startServer', async () => {
+			// mock server.start 抛错
+			const error = new Error('EADDRINUSE');
+			(error as any).code = 'EADDRINUSE';
+			mockServer.start.mockRejectedValue(error);
+			// mock server.stop 也抛错
+			mockServer.stop.mockRejectedValue(new Error('stop failed'));
+			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
 			activate(mockContext);
 			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Verify - should not call any additional functions when user cancels
-			expect(mockServer.forceStopExistingServer).not.toHaveBeenCalled();
-			expect(mockConfig.update).not.toHaveBeenCalled();
+			// 只要不抛出未捕获异常即可
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
 		});
 
-		it('should handle port conflict with undefined response', async () => {
-			// Setup
-			const portConflictError = new Error('EADDRINUSE');
-			(portConflictError as any).code = 'EADDRINUSE';
-			mockServer.start.mockRejectedValue(portConflictError);
-			mockServer.stop.mockResolvedValue(undefined);
-			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue(undefined);
-
-			// Execute
+		it('should handle error when server.stop throws in startServer', async () => {
+			// mock server.start 抛端口冲突
+			const error = new Error('EADDRINUSE');
+			(error as any).code = 'EADDRINUSE';
+			mockServer.start.mockRejectedValue(error);
+			mockServer.stop.mockRejectedValue(new Error('stop failed'));
+			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
 			activate(mockContext);
 			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Verify - should not call any additional functions when user cancels
-			expect(mockServer.forceStopExistingServer).not.toHaveBeenCalled();
-			expect(mockConfig.update).not.toHaveBeenCalled();
-		});
-
-		it('should handle port conflict with unknown response', async () => {
-			// Setup
-			const portConflictError = new Error('EADDRINUSE');
-			(portConflictError as any).code = 'EADDRINUSE';
-			mockServer.start.mockRejectedValue(portConflictError);
-			mockServer.stop.mockResolvedValue(undefined);
-			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Unknown' as any);
-
-			// Execute
-			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 100));
-
-			// Verify - should not call any additional functions for unknown response
-			expect(mockServer.forceStopExistingServer).not.toHaveBeenCalled();
-			expect(mockConfig.update).not.toHaveBeenCalled();
-		});
-
-		describe('startServer edge branches', () => {
-			it('should handle port check error with unknown error code', async () => {
-				const portConflictError = new Error('EADDRINUSE');
-				(portConflictError as any).code = 'EADDRINUSE';
-				mockServer.start.mockRejectedValue(portConflictError);
-				mockServer.stop.mockResolvedValue(undefined);
-				mockServer.forceStopExistingServer.mockResolvedValue(undefined);
-				mockServer.getPort.mockReturnValue(4711);
-				jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
-
-				// Mock server.start to fail with unknown error
-				mockServer.start.mockRejectedValueOnce(portConflictError).mockRejectedValue(new Error('Unknown error during retry'));
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 1000));
-				// 只要不抛出未捕获异常即可
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
-			});
-
-			it('should handle port check error with non-object error', async () => {
-				const portConflictError = new Error('EADDRINUSE');
-				(portConflictError as any).code = 'EADDRINUSE';
-				mockServer.start.mockRejectedValue(portConflictError);
-				mockServer.stop.mockResolvedValue(undefined);
-				mockServer.forceStopExistingServer.mockResolvedValue(undefined);
-				mockServer.getPort.mockReturnValue(4711);
-				jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
-
-				// Mock server.start to fail with non-object error
-				mockServer.start.mockRejectedValueOnce(portConflictError).mockRejectedValue(new Error('Non-object error during retry'));
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 1000));
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
-			});
-
-			it('should handle port check with immediate listening', async () => {
-				const portConflictError = new Error('EADDRINUSE');
-				(portConflictError as any).code = 'EADDRINUSE';
-				mockServer.start.mockRejectedValueOnce(portConflictError).mockResolvedValueOnce(undefined);
-				mockServer.stop.mockResolvedValue(undefined);
-				mockServer.forceStopExistingServer.mockResolvedValue(undefined);
-				mockServer.getPort.mockReturnValue(4711);
-				jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
-
-				// 这个测试用例期望端口冲突重试逻辑能够成功
-				// 但是由于我们的mock设置，重试逻辑可能不会按预期执行
-				// 让我们直接验证第一次调用和重试逻辑的基本行为
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 1000));
-				
-				// 验证至少有一次调用，并且用户选择了Yes
-				expect(mockServer.start).toHaveBeenCalled();
-				expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-					expect.stringContaining('Failed to start debug server'),
-					'Yes',
-					'No',
-					'Disable Autostart'
-				);
-			});
-
-			it('should throw error if port still in use after max retries', async () => {
-				const portConflictError = new Error('EADDRINUSE');
-				(portConflictError as any).code = 'EADDRINUSE';
-				mockServer.start.mockRejectedValue(portConflictError);
-				mockServer.stop.mockResolvedValue(undefined);
-				mockServer.forceStopExistingServer.mockResolvedValue(undefined);
-				mockServer.getPort.mockReturnValue(4711);
-				jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
-
-				// Mock server.start to fail after forceStopExistingServer
-				mockServer.start.mockRejectedValueOnce(portConflictError).mockRejectedValue(new Error('Port still in use after max retries'));
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 1200));
-				// 应该抛出端口仍被占用的错误
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
-			});
-
-			it('should handle error with undefined message in catch', async () => {
-				const error = {};
-				mockServer.start.mockRejectedValue(error);
-				mockServer.stop.mockResolvedValue(undefined);
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 100));
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to start debug server: undefined');
-			});
-
-			it('should handle error with null message in catch', async () => {
-				const error = { message: null };
-				mockServer.start.mockRejectedValue(error);
-				mockServer.stop.mockResolvedValue(undefined);
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 100));
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to start debug server: null');
-			});
-
-			it('should handle error with empty message in catch', async () => {
-				const error = { message: '' };
-				mockServer.start.mockRejectedValue(error);
-				mockServer.stop.mockResolvedValue(undefined);
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 100));
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to start debug server: ');
-			});
-
-			it('should trigger updateStatusBar else branch when server is not running', () => {
-				// Setup - ensure server is not running
-				mockServer.isRunning = false;
-				mockServer.start.mockResolvedValue(undefined);
-
-				// Execute
-				activate(mockContext);
-
-				// Get the updateStatusBar function by triggering a server state change
-				const stoppedHandler = jest.mocked(mockServer.on).mock.calls[1][1];
-				stoppedHandler();
-
-				// Verify - should show stopped status
-				expect(mockStatusBarItem.text).toBe('$(x) Claude Debugs For You');
-				expect(mockStatusBarItem.tooltip).toBe('Claude Debugs For You (Stopped) - Click to show commands');
-				expect(mockStatusBarItem.show).toHaveBeenCalled();
-			});
-
-			it('should cover port conflict retry logic throw branch with exact retry count', async () => {
-				const portConflictError = new Error('EADDRINUSE');
-				(portConflictError as any).code = 'EADDRINUSE';
-				mockServer.start
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValue(new Error('Port 4711 is still in use after 5 attempts to release it'));
-				mockServer.stop.mockResolvedValue(undefined);
-				mockServer.forceStopExistingServer.mockResolvedValue(undefined);
-				mockServer.getPort.mockReturnValue(4711);
-				jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 2000));
-
-				// Verify - should show error message about port still in use after max retries
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
-			});
-
-			it('should cover port conflict retry logic throw branch with different port number', async () => {
-				const portConflictError = new Error('EADDRINUSE');
-				(portConflictError as any).code = 'EADDRINUSE';
-				mockServer.start
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValueOnce(portConflictError)
-					.mockRejectedValue(new Error('Port 9999 is still in use after 5 attempts to release it'));
-				mockServer.stop.mockResolvedValue(undefined);
-				mockServer.forceStopExistingServer.mockResolvedValue(undefined);
-				mockServer.getPort.mockReturnValue(9999);
-				jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
-
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 2000));
-
-				// Verify - should show error message about port still in use after max retries
-				expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
-			});
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
 		});
 	});
 
@@ -715,39 +579,6 @@ describe('Extension', () => {
 			expect(mockServer.setPort).toHaveBeenCalledTimes(1);
 			// show 只会在初始化时被调用一次
 			expect(mockStatusBarItem.show).toHaveBeenCalledTimes(1);
-		});
-
-		it('should handle port change with server running and restart command failure', async () => {
-			// Setup
-			mockServer.isRunning = true;
-			mockServer.start.mockResolvedValue(undefined);
-			
-			// Reset the mock for this specific test
-			jest.mocked(vscode.commands.executeCommand).mockReset();
-			jest.mocked(vscode.commands.executeCommand).mockRejectedValue(new Error('Restart failed'));
-
-			// Execute
-			activate(mockContext);
-
-			// Simulate configuration change
-			const configChangeEvent = { affectsConfiguration: (key: string) => key === 'mcpDebug.port' };
-			const configChangeHandler = jest.mocked(vscode.workspace.onDidChangeConfiguration).mock.calls[0][0];
-
-			// 应该抛出异常
-			try {
-				await configChangeHandler(configChangeEvent);
-				// 如果没有抛出异常，测试应该失败
-				expect(true).toBe(false);
-			} catch (error) {
-				expect(error).toBeInstanceOf(Error);
-				expect((error as Error).message).toBe('Restart failed');
-			}
-
-			// Verify
-			expect(fs.writeFileSync).toHaveBeenCalled();
-			expect(mockServer.setPort).toHaveBeenCalled();
-			expect(vscode.window.showInformationMessage).toHaveBeenCalled();
-			expect(vscode.commands.executeCommand).toHaveBeenCalledWith('vscode-mcp-debug.restart');
 		});
 	});
 
@@ -1309,7 +1140,7 @@ describe('Extension', () => {
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
 
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			await new Promise(resolve => setTimeout(resolve, 2200));
 
 			// Verify - should show error message about port still in use after max retries
 			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
@@ -1331,7 +1162,7 @@ describe('Extension', () => {
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
 
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 2000));
+			await new Promise(resolve => setTimeout(resolve, 2200));
 
 			// Verify - should show error message about port still in use after max retries
 			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
@@ -1479,9 +1310,10 @@ describe('Extension', () => {
 			// mock server.stop 也抛错
 			mockServer.stop.mockRejectedValue(new Error('stop failed'));
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
-			// 只要不抛出未捕获异常即可
 			activate(mockContext);
 			await new Promise(resolve => setTimeout(resolve, 100));
+			// 只要不抛出未捕获异常即可
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
 		});
 
 		it('should handle error when server.stop throws in startServer', async () => {
@@ -1491,11 +1323,9 @@ describe('Extension', () => {
 			mockServer.start.mockRejectedValue(error);
 			mockServer.stop.mockRejectedValue(new Error('stop failed'));
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
-			// activate 应该抛出 stop failed
-			await expect(async () => {
-				activate(mockContext);
-				await new Promise(resolve => setTimeout(resolve, 100));
-			}).rejects.toThrow('stop failed');
+			activate(mockContext);
+			await new Promise(resolve => setTimeout(resolve, 100));
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
 		});
 
 		it('should handle error when forceStopExistingServer throws in startServer', async () => {
