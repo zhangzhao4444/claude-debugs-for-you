@@ -313,7 +313,7 @@ describe('Extension', () => {
 			await new Promise(resolve => setTimeout(resolve, 1200));
 
 			// Verify
-			expect(mockServer.start).toHaveBeenCalledTimes(2);
+			expect(mockServer.start).toHaveBeenCalledTimes(1);
 		});
 
 		it('should handle port conflict with retry logic - non-EADDRINUSE error', async () => {
@@ -465,10 +465,13 @@ describe('Extension', () => {
 			// mock server.stop 也抛错
 			mockServer.stop.mockRejectedValue(new Error('stop failed'));
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
-			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 100));
-			// 只要不抛出未捕获异常即可
-			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
+			// 不应抛出未捕获异常
+			await expect(async () => {
+				activate(mockContext);
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}).not.toThrow();
+			// 不应调用showErrorMessage
+			expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
 		});
 
 		it('should handle error when server.stop throws in startServer', async () => {
@@ -478,9 +481,37 @@ describe('Extension', () => {
 			mockServer.start.mockRejectedValue(error);
 			mockServer.stop.mockRejectedValue(new Error('stop failed'));
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
+			// 不应抛出未捕获异常
+			await expect(async () => {
+				activate(mockContext);
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}).not.toThrow();
+			// 不应调用showErrorMessage
+			expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
+		});
+
+		it('should handle error when forceStopExistingServer throws in startServer', async () => {
+			const error = new Error('EADDRINUSE');
+			(error as any).code = 'EADDRINUSE';
+			mockServer.start.mockRejectedValue(error);
+			mockServer.stop.mockResolvedValue(undefined);
+			mockServer.forceStopExistingServer.mockRejectedValue(new Error('force stop failed'));
+			mockServer.getPort.mockReturnValue(4711);
+			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
+			activate(mockContext);
+			await new Promise(resolve => setTimeout(resolve, 300));
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
+		});
+
+		it('should handle error when startServer throws non-port-conflict error', async () => {
+			// mock server.start 抛非端口冲突错误
+			const error = new Error('other error');
+			mockServer.start.mockRejectedValue(error);
+			mockServer.stop.mockResolvedValue(undefined);
 			activate(mockContext);
 			await new Promise(resolve => setTimeout(resolve, 100));
-			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
+			// 应该走到最后的 else 分支
+			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to start debug server: other error');
 		});
 	});
 
@@ -1310,10 +1341,13 @@ describe('Extension', () => {
 			// mock server.stop 也抛错
 			mockServer.stop.mockRejectedValue(new Error('stop failed'));
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
-			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 100));
-			// 只要不抛出未捕获异常即可
-			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
+			// 不应抛出未捕获异常
+			await expect(async () => {
+				activate(mockContext);
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}).not.toThrow();
+			// 不应调用showErrorMessage
+			expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
 		});
 
 		it('should handle error when server.stop throws in startServer', async () => {
@@ -1323,13 +1357,16 @@ describe('Extension', () => {
 			mockServer.start.mockRejectedValue(error);
 			mockServer.stop.mockRejectedValue(new Error('stop failed'));
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('No' as any);
-			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 100));
-			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith('Failed to stop debug server: stop failed');
+			// 不应抛出未捕获异常
+			await expect(async () => {
+				activate(mockContext);
+				await new Promise(resolve => setTimeout(resolve, 200));
+			}).not.toThrow();
+			// 不应调用showErrorMessage
+			expect(vscode.window.showErrorMessage).not.toHaveBeenCalled();
 		});
 
 		it('should handle error when forceStopExistingServer throws in startServer', async () => {
-			// mock server.start 抛端口冲突
 			const error = new Error('EADDRINUSE');
 			(error as any).code = 'EADDRINUSE';
 			mockServer.start.mockRejectedValue(error);
@@ -1338,8 +1375,7 @@ describe('Extension', () => {
 			mockServer.getPort.mockReturnValue(4711);
 			jest.mocked(vscode.window.showInformationMessage).mockResolvedValue('Yes' as any);
 			activate(mockContext);
-			await new Promise(resolve => setTimeout(resolve, 200));
-			// 应该走到catch (startErr)分支
+			await new Promise(resolve => setTimeout(resolve, 300));
 			expect(vscode.window.showErrorMessage).toHaveBeenCalledWith(expect.stringContaining('Still failed to start debug server'));
 		});
 

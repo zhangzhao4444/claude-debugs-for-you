@@ -66,30 +66,69 @@ const debugInputSchema = {
     steps: z.array(debugStepSchema),
 };
 
-// Main tools array with Zod schemas
-const tools = [
-    {
+// 工具定义集中管理
+const TOOL_DEFINITIONS = {
+    listFiles: {
         name: "listFiles",
-        description: listFilesDescription, // Make sure this variable is defined in your code
+        description: listFilesDescription,
         inputSchema: listFilesInputSchema,
     },
-    {
+    getFileContent: {
         name: "getFileContent",
-        description: getFileContentDescription, // Make sure this variable is defined in your code
+        description: getFileContentDescription,
         inputSchema: getFileContentInputSchema,
     },
-    {
+    debug: {
         name: "debug",
-        description: debugDescription, // Make sure this variable is defined in your code
+        description: debugDescription,
         inputSchema: debugInputSchema,
     },
-];
+};
+
+// 通用CORS处理
+function setCorsHeaders(res: http.ServerResponse) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
+}
+
+// 工具注册辅助函数
+function registerMcpTools(server: DebugServer) {
+    server.mcpServer.tool(
+        TOOL_DEFINITIONS.listFiles.name,
+        TOOL_DEFINITIONS.listFiles.description,
+        TOOL_DEFINITIONS.listFiles.inputSchema,
+        async (args: any) => {
+            const files = await server.handleListFiles(args);
+            return { content: [{ type: "text", text: JSON.stringify(files) }] };
+        }
+    );
+    server.mcpServer.tool(
+        TOOL_DEFINITIONS.getFileContent.name,
+        TOOL_DEFINITIONS.getFileContent.description,
+        TOOL_DEFINITIONS.getFileContent.inputSchema,
+        async (args: any) => {
+            const content = await server.handleGetFile(args);
+            return { content: [{ type: "text", text: content }] };
+        }
+    );
+    server.mcpServer.tool(
+        TOOL_DEFINITIONS.debug.name,
+        TOOL_DEFINITIONS.debug.description,
+        TOOL_DEFINITIONS.debug.inputSchema,
+        async (args: any) => {
+            const results = await server.handleDebug(args);
+            return { content: [{ type: "text", text: results.join('\n') }] };
+        }
+    );
+}
+
 export class DebugServer extends EventEmitter implements DebugServerEvents {
     private server: http.Server | null = null;
     private port: number = 4711;
     private portConfigPath: string | null = null;
     private activeTransports: Record<string, SSEServerTransport> = {};
-    private mcpServer: McpServer;
+    public mcpServer: McpServer;
     private _isRunning: boolean = false;
 
     constructor(port?: number, portConfigPath?: string) {
@@ -100,22 +139,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
             name: "Debug Server",
             version: "1.0.0",
         });
-
-        // Setup MCP tools to use our existing handlers
-        this.mcpServer.tool("listFiles", listFilesDescription, listFilesInputSchema, async (args: any) => {
-            const files = await this.handleListFiles(args);
-            return { content: [{ type: "text", text: JSON.stringify(files) }] };
-        });
-
-        this.mcpServer.tool("getFileContent", getFileContentDescription, getFileContentInputSchema, async (args: any) => {
-            const content = await this.handleGetFile(args);
-            return { content: [{ type: "text", text: content }] };
-        });
-
-        this.mcpServer.tool("debug", debugDescription, debugInputSchema, async (args: any) => {
-            const results = await this.handleDebug(args);
-            return { content: [{ type: "text", text: results.join('\n') }] };
-        });
+        registerMcpTools(this);
     }
 
     get isRunning(): boolean {
@@ -124,14 +148,11 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
 
     setPort(port: number): void {
         this.port = port || 4711;
-
-        // Update port in configuration file if available
         if (this.portConfigPath && typeof port === 'number') {
             try {
                 fs.writeFileSync(this.portConfigPath, JSON.stringify({ port }));
             } catch (err) {
                 console.error('Failed to update port configuration file:', err);
-                // We'll still use the new port even if saving to file fails
             }
         }
     }
@@ -142,41 +163,35 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
 
     async forceStopExistingServer(): Promise<void> {
         try {
-            // Send a request to the shutdown endpoint of any existing server
             await new Promise<void>((resolve, reject) => {
                 const req = http.request({
                     hostname: 'localhost',
                     port: this.port,
                     path: '/shutdown',
                     method: 'POST',
-                    timeout: 3000 // 3 second timeout
+                    timeout: 3000
                 }, (res: http.IncomingMessage) => {
                     let data = '';
                     res.on('data', (chunk: Buffer) => data += chunk);
                     res.on('end', () => {
                         if (res.statusCode === 200) {
-                            // Give the server a moment to shut down
                             setTimeout(resolve, 500);
                         } else {
                             reject(new Error(`Unexpected status: ${res.statusCode}`));
                         }
                     });
                 });
-
                 req.on('error', (err: NodeJS.ErrnoException) => {
-                    // If we can't connect, there's no server running or it's not ours
                     if (err.code === 'ECONNREFUSED') {
-                        resolve(); // No server running, so nothing to stop
+                        resolve();
                     } else {
                         reject(err);
                     }
                 });
-
                 req.on('timeout', () => {
                     req.destroy();
                     reject(new Error('Request timed out'));
                 });
-
                 req.end();
             });
         } catch (err) {
@@ -189,81 +204,7 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         if (this.server) {
             throw new Error('Server is already running');
         }
-
-        this.server = http.createServer(async (req: http.IncomingMessage, res: http.ServerResponse) => {
-            // Handle CORS
-            res.setHeader('Access-Control-Allow-Origin', '*');
-            res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-            res.setHeader('Access-Control-Allow-Headers', '*');
-
-            if (req.method === 'OPTIONS') {
-                res.writeHead(204).end();
-                return;
-            }
-
-            // Shutdown endpoint - allows another instance to request shutdown of this server
-            if (req.method === 'POST' && req.url === '/shutdown') {
-                res.writeHead(200).end('Server shutting down');
-                this.stop().catch(err => {
-                    res.writeHead(500).end(`Error shutting down: ${err.message}`);
-                });
-                return;
-            }
-
-            // Legacy TCP-style endpoint
-            if (req.method === 'POST' && req.url === '/tcp') {
-                let body = '';
-                req.on('data', (chunk: Buffer) => body += chunk);
-                req.on('end', async () => {
-                    try {
-                        const request = JSON.parse(body);
-                        let response: any;
-
-                        if (request.type === 'listTools') {
-                            response = { tools };
-                        } else if (request.type === 'callTool') {
-                            response = await this.handleCommand(request);
-                        }
-
-                        res.writeHead(200, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({ success: true, data: response }));
-                    } catch (error) {
-                        res.writeHead(500, { 'Content-Type': 'application/json' });
-                        res.end(JSON.stringify({
-                            success: false,
-                            error: error instanceof Error ? error.message : 'Unknown error'
-                        }));
-                    }
-                });
-                return;
-            }
-
-            // SSE endpoint
-            if (req.method === 'GET' && req.url === '/sse') {
-                const transport = new SSEServerTransport('/messages', res);
-                this.activeTransports[transport.sessionId] = transport;
-                await this.mcpServer.connect(transport);
-                res.on('close', () => {
-                    delete this.activeTransports[transport.sessionId];
-                });
-                return;
-            }
-
-            // Message endpoint for SSE
-            if (req.method === 'POST' && req.url?.startsWith('/messages')) {
-                const url = new URL(req.url, 'http://localhost');
-                const sessionId = url.searchParams.get('sessionId');
-                if (!sessionId || !this.activeTransports[sessionId]) {
-                    res.writeHead(404).end('Session not found');
-                    return;
-                }
-                await this.activeTransports[sessionId].handlePostMessage(req, res);
-                return;
-            }
-
-            res.writeHead(404).end();
-        });
-
+        this.server = http.createServer(this.handleHttpRequest.bind(this));
         return new Promise((resolve, reject) => {
             this.server!.listen(this.port, () => {
                 this._isRunning = true;
@@ -273,7 +214,65 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         });
     }
 
-    // Helper method to handle tool calls
+    private async handleHttpRequest(req: http.IncomingMessage, res: http.ServerResponse) {
+        setCorsHeaders(res);
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204).end();
+            return;
+        }
+        if (req.method === 'POST' && req.url === '/shutdown') {
+            res.writeHead(200).end('Server shutting down');
+            this.stop().catch(err => {
+                res.writeHead(500).end(`Error shutting down: ${err.message}`);
+            });
+            return;
+        }
+        if (req.method === 'POST' && req.url === '/tcp') {
+            let body = '';
+            req.on('data', (chunk: Buffer) => body += chunk);
+            req.on('end', async () => {
+                try {
+                    const request = JSON.parse(body);
+                    let response: any;
+                    if (request.type === 'listTools') {
+                        response = Object.values(TOOL_DEFINITIONS);
+                    } else if (request.type === 'callTool') {
+                        response = await this.handleCommand(request);
+                    }
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true, data: response }));
+                } catch (error) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({
+                        success: false,
+                        error: error instanceof Error ? error.message : 'Unknown error'
+                    }));
+                }
+            });
+            return;
+        }
+        if (req.method === 'GET' && req.url === '/sse') {
+            const transport = new SSEServerTransport('/messages', res);
+            this.activeTransports[transport.sessionId] = transport;
+            await this.mcpServer.connect(transport);
+            res.on('close', () => {
+                delete this.activeTransports[transport.sessionId];
+            });
+            return;
+        }
+        if (req.method === 'POST' && req.url?.startsWith('/messages')) {
+            const url = new URL(req.url, 'http://localhost');
+            const sessionId = url.searchParams.get('sessionId');
+            if (!sessionId || !this.activeTransports[sessionId]) {
+                res.writeHead(404).end('Session not found');
+                return;
+            }
+            await this.activeTransports[sessionId].handlePostMessage(req, res);
+            return;
+        }
+        res.writeHead(404).end();
+    }
+
     private async handleCommand(request: ToolRequest): Promise<any> {
         switch (request.tool) {
             case 'listFiles':
@@ -287,34 +286,121 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
         }
     }
 
-    private async handleLaunch(payload: {
-        program: string,
-        args?: string[]
-    }): Promise<string> {
+    async handleListFiles(payload: { includePatterns?: string[], excludePatterns?: string[] }): Promise<string[]> {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders) {
+            throw new Error('No workspace folders found');
+        }
+        const includePatterns = payload.includePatterns || ['**/*'];
+        const excludePatterns = payload.excludePatterns || ['**/node_modules/**', '**/.git/**'];
+        const files: string[] = [];
+        for (const folder of workspaceFolders) {
+            const relativePattern = new vscode.RelativePattern(folder, `{${includePatterns.join(',')}}`);
+            const foundFiles = await vscode.workspace.findFiles(relativePattern, `{${excludePatterns.join(',')}}`);
+            files.push(...foundFiles.map((file: vscode.Uri) => file.fsPath));
+        }
+        return files;
+    }
+
+    async handleGetFile(payload: { path: string }): Promise<string> {
+        const doc = await vscode.workspace.openTextDocument(payload.path);
+        const lines = doc.getText().split('\n');
+        return lines.map((line: string, i: number) => `${i + 1}: ${line}`).join('\n');
+    }
+
+    async handleDebug(payload: { steps: DebugStep[] }): Promise<string[]> {
+        const results: string[] = [];
+        for (const step of payload.steps) {
+            switch (step.type) {
+                case 'setBreakpoint': {
+                    if (!step.line) throw new Error('Line number required');
+                    if (!step.file) throw new Error('File path required');
+                    const document = await vscode.workspace.openTextDocument(step.file);
+                    const editor = await vscode.window.showTextDocument(document);
+                    const bp = new vscode.SourceBreakpoint(
+                        new vscode.Location(
+                            editor.document.uri,
+                            new vscode.Position(step.line - 1, 0)
+                        ),
+                        true,
+                        step.condition,
+                    );
+                    await vscode.debug.addBreakpoints([bp]);
+                    results.push(`Set breakpoint at line ${step.line}`);
+                    break;
+                }
+                case 'removeBreakpoint': {
+                    if (!step.line) throw new Error('Line number required');
+                    const bps = vscode.debug.breakpoints.filter((bp: vscode.Breakpoint) => {
+                        if (bp instanceof vscode.SourceBreakpoint) {
+                            return bp.location.range.start.line === step.line! - 1;
+                        }
+                        return false;
+                    });
+                    await vscode.debug.removeBreakpoints(bps);
+                    results.push(`Removed breakpoint at line ${step.line}`);
+                    break;
+                }
+                case 'continue': {
+                    const session = vscode.debug.activeDebugSession;
+                    if (!session) throw new Error('No active debug session');
+                    await session.customRequest('continue');
+                    results.push('Continued execution');
+                    break;
+                }
+                case 'evaluate': {
+                    const session = vscode.debug.activeDebugSession;
+                    if (!session) throw new Error('No active debug session');
+                    const activeStackItem = vscode.debug.activeStackItem;
+                    let frameId = undefined;
+                    if (activeStackItem instanceof vscode.DebugStackFrame) {
+                        frameId = activeStackItem.frameId;
+                    }
+                    if (!frameId) {
+                        const frames = await session.customRequest('stackTrace', { threadId: 1 });
+                        if (!frames || !frames.stackFrames || frames.stackFrames.length === 0) {
+                            vscode.window.showErrorMessage('No stack frame available');
+                            break;
+                        }
+                        frameId = frames.stackFrames[0].id;
+                    }
+                    try {
+                        const response = await session.customRequest('evaluate', {
+                            expression: step.expression,
+                            frameId: frameId,
+                            context: 'repl'
+                        });
+                        results.push(`Evaluated "${step.expression}": ${response.result}`);
+                    } catch (err) {
+                        vscode.window.showErrorMessage(`Failed to execute: ${err}`);
+                    }
+                    break;
+                }
+                case 'launch': {
+                    await this.handleLaunch({ program: step.file });
+                    break;
+                }
+            }
+        }
+        return results;
+    }
+
+    private async handleLaunch(payload: { program: string, args?: string[] }): Promise<string> {
         const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
         if (!workspaceFolder) {
             throw new Error('No workspace folder found');
         }
-
-        // Try to get launch configurations
         const launchConfig = vscode.workspace.getConfiguration('launch', workspaceFolder.uri);
         const configurations = launchConfig.get<any[]>('configurations');
-
         if (!configurations || configurations.length === 0) {
             throw new Error('No debug configurations found in launch.json');
         }
-
-        // Get the first configuration and update it with the current file
         const config = { ...configurations[0] };
-
-        // Replace ${file} with actual file path if it exists in the configuration
         Object.keys(config).forEach(key => {
             if (typeof config[key] === 'string') {
                 config[key] = config[key].replace('${file}', payload.program);
             }
         });
-
-        // Replace ${workspaceFolder} in environment variables if they exist
         if (config.env) {
             Object.keys(config.env).forEach(key => {
                 if (typeof config.env[key] === 'string') {
@@ -325,22 +411,14 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
                 }
             });
         }
-
-        // Check if we're already debugging
         let session = vscode.debug.activeDebugSession;
         if (!session) {
-            // Start debugging using the configured launch configuration
             await vscode.debug.startDebugging(workspaceFolder, config);
-
-            // Wait for session to be available
             session = await this.waitForDebugSession();
         }
-
-        // Check if we're at a breakpoint
         try {
             const threads = await session.customRequest('threads');
             const threadId = threads.threads[0].id;
-
             const stack = await session.customRequest('stackTrace', { threadId });
             if (stack.stackFrames && stack.stackFrames.length > 0) {
                 const topFrame = stack.stackFrames[0];
@@ -351,7 +429,6 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
                     }
                     return false;
                 });
-
                 if (currentBreakpoints.length > 0) {
                     return `Debug session started - Stopped at breakpoint on line ${topFrame.line}`;
                 }
@@ -368,7 +445,6 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
             const timeout = setTimeout(() => {
                 reject(new Error('Timeout waiting for debug session'));
             }, 5000);
-
             const checkSession = () => {
                 const session = vscode.debug.activeDebugSession;
                 if (session) {
@@ -378,144 +454,8 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
                     setTimeout(checkSession, 100);
                 }
             };
-
             checkSession();
         });
-    }
-
-    private async handleListFiles(payload: {
-        includePatterns?: string[],
-        excludePatterns?: string[]
-    }): Promise<string[]> {
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (!workspaceFolders) {
-            throw new Error('No workspace folders found');
-        }
-
-        const includePatterns = payload.includePatterns || ['**/*'];
-        const excludePatterns = payload.excludePatterns || ['**/node_modules/**', '**/.git/**'];
-
-        const files: string[] = [];
-        for (const folder of workspaceFolders) {
-            const relativePattern = new vscode.RelativePattern(folder, `{${includePatterns.join(',')}}`);
-            const foundFiles = await vscode.workspace.findFiles(relativePattern, `{${excludePatterns.join(',')}}`);
-            files.push(...foundFiles.map((file: vscode.Uri) => file.fsPath));
-        }
-
-        return files;
-    }
-
-    private async handleGetFile(payload: { path: string }): Promise<string> {
-        const doc = await vscode.workspace.openTextDocument(payload.path);
-        const lines = doc.getText().split('\n');
-        return lines.map((line: string, i: number) => `${i + 1}: ${line}`).join('\n');
-    }
-
-    private async handleDebug(payload: { steps: DebugStep[] }): Promise<string[]> {
-        const results: string[] = [];
-
-        for (const step of payload.steps) {
-            switch (step.type) {
-                case 'setBreakpoint': {
-                    if (!step.line) {
-                        throw new Error('Line number required');
-                    }
-                    if (!step.file) {
-                        throw new Error('File path required');
-                    }
-
-                    // Open the file and make it active
-                    const document = await vscode.workspace.openTextDocument(step.file);
-                    const editor = await vscode.window.showTextDocument(document);
-
-                    const bp = new vscode.SourceBreakpoint(
-                        new vscode.Location(
-                            editor.document.uri,
-                            new vscode.Position(step.line - 1, 0)
-                        ),
-                        true,
-                        step.condition,
-                    );
-                    await vscode.debug.addBreakpoints([bp]);
-                    results.push(`Set breakpoint at line ${step.line}`);
-                    break;
-                }
-
-                case 'removeBreakpoint': {
-                    if (!step.line) {
-                        throw new Error('Line number required');
-                    }
-                    const bps = vscode.debug.breakpoints.filter((bp: vscode.Breakpoint) => {
-                        if (bp instanceof vscode.SourceBreakpoint) {
-                            return bp.location.range.start.line === step.line! - 1;
-                        }
-                        return false;
-                    });
-                    await vscode.debug.removeBreakpoints(bps);
-                    results.push(`Removed breakpoint at line ${step.line}`);
-                    break;
-                }
-
-                case 'continue': {
-                    const session = vscode.debug.activeDebugSession;
-                    if (!session) {
-                        throw new Error('No active debug session');
-                    }
-                    await session.customRequest('continue');
-                    results.push('Continued execution');
-                    break;
-                }
-
-                case 'evaluate': {
-                    const session = vscode.debug.activeDebugSession;
-                    if (!session) {
-                        throw new Error('No active debug session');
-                    }
-
-                    const activeStackItem = vscode.debug.activeStackItem;
-
-                    // Grab the active frameId
-                    let frameId = undefined;
-                    if (activeStackItem instanceof vscode.DebugStackFrame) {
-                        frameId = activeStackItem.frameId;
-                    }
-
-                    // In case activeStackItem.frameId is falsey
-                    if (!frameId) {
-                        // Get the current stack frame
-                        const frames = await session.customRequest('stackTrace', {
-                            threadId: 1  // You might need to get the actual threadId
-                        });
-
-                        if (!frames || !frames.stackFrames || frames.stackFrames.length === 0) {
-                            vscode.window.showErrorMessage('No stack frame available');
-                            break;
-                        }
-
-                        frameId = frames.stackFrames[0].id;  // Usually use the top frame
-                    }
-
-                    try {
-                        const response = await session.customRequest('evaluate', {
-                            expression: step.expression,
-                            frameId: frameId,
-                            context: 'repl'
-                        });
-
-                        results.push(`Evaluated "${step.expression}": ${response.result}`);
-                    } catch (err) {
-                        vscode.window.showErrorMessage(`Failed to execute: ${err}`);
-                    }
-                    break;
-                }
-
-                case 'launch': {
-                    await this.handleLaunch({ program: step.file });
-                }
-            }
-        }
-
-        return results;
     }
 
     stop(): Promise<void> {
@@ -526,12 +466,10 @@ export class DebugServer extends EventEmitter implements DebugServerEvents {
                 resolve();
                 return;
             }
-
             Object.values(this.activeTransports).forEach(transport => {
                 transport.close();
             });
             this.activeTransports = {};
-
             this.server.close(() => {
                 this.server = null;
                 this._isRunning = false;
